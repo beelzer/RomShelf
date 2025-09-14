@@ -1,6 +1,6 @@
 """Interface settings page."""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.settings import Settings
+from ...utils.flag_icons import FlagIcons
 from .settings_base import SettingsPage
 
 
@@ -84,7 +85,17 @@ class InterfacePage(SettingsPage):
         region_layout = QVBoxLayout(region_group)
 
         self._region_combo = QComboBox()
-        self._region_combo.addItems(["USA", "Europe", "Japan", "World"])
+        self._region_combo.setIconSize(QSize(20, 15))  # Set icon size for flags
+
+        # Add region items with flag icons
+        regions = ["USA", "Europe", "Japan", "World"]
+        for region in regions:
+            flag_icon = FlagIcons.get_flag_icon(region, QSize(20, 15))
+            if flag_icon:
+                self._region_combo.addItem(flag_icon, region)
+            else:
+                self._region_combo.addItem(region)
+
         self._region_combo.setCurrentText("USA")
         region_layout.addWidget(self._region_combo)
 
