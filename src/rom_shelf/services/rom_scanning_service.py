@@ -4,8 +4,9 @@ import concurrent.futures
 import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from ..core.archive_processor import ArchiveProcessor
 from ..core.extension_handler import FileHandlingType, extension_registry
@@ -38,8 +39,8 @@ class ScanConfiguration:
         self.scan_subdirectories: bool = True
         self.handle_archives: bool = True
         self.max_workers: int = min(32, (os.cpu_count() or 1) + 4)
-        self.supported_formats: List[str] = []
-        self.supported_archives: List[str] = []
+        self.supported_formats: list[str] = []
+        self.supported_archives: list[str] = []
 
 
 class ROMScanningService:
@@ -55,9 +56,9 @@ class ROMScanningService:
         self._progress_lock = threading.Lock()
 
         # Callbacks for UI communication
-        self._progress_callback: Optional[Callable[[ScanProgress], None]] = None
-        self._rom_found_callback: Optional[Callable[[ROMEntry], None]] = None
-        self._error_callback: Optional[Callable[[str], None]] = None
+        self._progress_callback: Callable[[ScanProgress], None] | None = None
+        self._rom_found_callback: Callable[[ROMEntry], None] | None = None
+        self._error_callback: Callable[[str], None] | None = None
 
     def set_progress_callback(self, callback: Callable[[ScanProgress], None]) -> None:
         """Set callback for progress updates."""
@@ -79,10 +80,7 @@ class ROMScanningService:
         """Signal the scanner to stop."""
         self._should_stop = True
 
-    def scan_platform_directories(
-        self,
-        platform_configs: List[Dict[str, Any]]
-    ) -> List[ROMEntry]:
+    def scan_platform_directories(self, platform_configs: list[dict[str, Any]]) -> list[ROMEntry]:
         """
         Scan directories for ROMs based on platform configurations.
 
@@ -117,7 +115,7 @@ class ROMScanningService:
             self._is_scanning = False
             self._should_stop = False
 
-    def _execute_scan(self, platform_configs: List[Dict[str, Any]]) -> List[ROMEntry]:
+    def _execute_scan(self, platform_configs: list[dict[str, Any]]) -> list[ROMEntry]:
         """Execute the actual scanning operation."""
         all_entries = []
         progress = ScanProgress()
@@ -138,11 +136,13 @@ class ROMScanningService:
 
         return all_entries
 
-    def _count_total_files(self, platform_configs: List[Dict[str, Any]], progress: ScanProgress) -> None:
+    def _count_total_files(
+        self, platform_configs: list[dict[str, Any]], progress: ScanProgress
+    ) -> None:
         """Count total files that will be scanned."""
         for config in platform_configs:
-            directories = config.get('directories', [])
-            scan_subdirs = config.get('scan_subdirectories', True)
+            directories = config.get("directories", [])
+            scan_subdirs = config.get("scan_subdirectories", True)
 
             for directory_path in directories:
                 try:
@@ -151,7 +151,7 @@ class ROMScanningService:
                         continue
 
                     if scan_subdirs:
-                        files = list(path.rglob('*'))
+                        files = list(path.rglob("*"))
                     else:
                         files = list(path.iterdir())
 
@@ -159,15 +159,17 @@ class ROMScanningService:
                 except Exception:
                     continue
 
-    def _scan_platform_config(self, config: Dict[str, Any], progress: ScanProgress) -> List[ROMEntry]:
+    def _scan_platform_config(
+        self, config: dict[str, Any], progress: ScanProgress
+    ) -> list[ROMEntry]:
         """Scan directories for a specific platform configuration."""
-        platform: BasePlatform = config['platform']
-        directories = config.get('directories', [])
-        scan_subdirs = config.get('scan_subdirectories', True)
-        handle_archives = config.get('handle_archives', True)
-        supported_formats = config.get('supported_formats', [])
-        supported_archives = config.get('supported_archives', [])
-        max_workers = config.get('max_workers', min(32, (os.cpu_count() or 1) + 4))
+        platform: BasePlatform = config["platform"]
+        directories = config.get("directories", [])
+        scan_subdirs = config.get("scan_subdirectories", True)
+        handle_archives = config.get("handle_archives", True)
+        supported_formats = config.get("supported_formats", [])
+        supported_archives = config.get("supported_archives", [])
+        max_workers = config.get("max_workers", min(32, (os.cpu_count() or 1) + 4))
 
         platform_entries = []
 
@@ -184,7 +186,7 @@ class ROMScanningService:
 
                 # Get all files in directory
                 if scan_subdirs:
-                    files = [f for f in path.rglob('*') if f.is_file()]
+                    files = [f for f in path.rglob("*") if f.is_file()]
                 else:
                     files = [f for f in path.iterdir() if f.is_file()]
 
@@ -195,9 +197,13 @@ class ROMScanningService:
 
                 # Process files in parallel
                 entries = self._process_files_parallel(
-                    files, platform, handle_archives,
-                    supported_formats, supported_archives,
-                    progress, max_workers
+                    files,
+                    platform,
+                    handle_archives,
+                    supported_formats,
+                    supported_archives,
+                    progress,
+                    max_workers,
                 )
 
                 platform_entries.extend(entries)
@@ -211,14 +217,14 @@ class ROMScanningService:
 
     def _process_files_parallel(
         self,
-        files: List[Path],
+        files: list[Path],
         platform: BasePlatform,
         handle_archives: bool,
-        supported_formats: List[str],
-        supported_archives: List[str],
+        supported_formats: list[str],
+        supported_archives: list[str],
         progress: ScanProgress,
-        max_workers: int
-    ) -> List[ROMEntry]:
+        max_workers: int,
+    ) -> list[ROMEntry]:
         """Process files in parallel using thread pool."""
         print(f"Starting multi-threaded scan with {max_workers} workers")
         start_time = time.time()
@@ -234,8 +240,11 @@ class ROMScanningService:
 
                 future = executor.submit(
                     self._process_single_file,
-                    file_path, platform, handle_archives,
-                    supported_formats, supported_archives
+                    file_path,
+                    platform,
+                    handle_archives,
+                    supported_formats,
+                    supported_archives,
                 )
                 future_to_file[future] = file_path
 
@@ -276,9 +285,9 @@ class ROMScanningService:
         file_path: Path,
         platform: BasePlatform,
         handle_archives: bool,
-        supported_formats: List[str],
-        supported_archives: List[str]
-    ) -> List[ROMEntry]:
+        supported_formats: list[str],
+        supported_archives: list[str],
+    ) -> list[ROMEntry]:
         """Process a single file and return ROM entries if valid."""
         try:
             # Determine how to handle this file
@@ -301,11 +310,8 @@ class ROMScanningService:
             return []
 
     def _process_archive_file(
-        self,
-        file_path: Path,
-        platform: BasePlatform,
-        supported_archives: List[str]
-    ) -> List[ROMEntry]:
+        self, file_path: Path, platform: BasePlatform, supported_archives: list[str]
+    ) -> list[ROMEntry]:
         """Process an archive file."""
         if not self._archive_processor.is_supported_archive(file_path):
             return []
@@ -335,11 +341,8 @@ class ROMScanningService:
         return entries
 
     def _process_multi_part_file(
-        self,
-        file_path: Path,
-        platform: BasePlatform,
-        supported_formats: List[str]
-    ) -> List[ROMEntry]:
+        self, file_path: Path, platform: BasePlatform, supported_formats: list[str]
+    ) -> list[ROMEntry]:
         """Process a multi-part ROM file."""
         # Validate multi-part file set
         if not self._multi_file_validator.validate_multi_part_set(file_path):
@@ -356,11 +359,8 @@ class ROMScanningService:
         return []
 
     def _process_single_rom_file(
-        self,
-        file_path: Path,
-        platform: BasePlatform,
-        supported_formats: List[str]
-    ) -> List[ROMEntry]:
+        self, file_path: Path, platform: BasePlatform, supported_formats: list[str]
+    ) -> list[ROMEntry]:
         """Process a single ROM file."""
         if platform.validate_file(file_path):
             entry = self._create_rom_entry(file_path, platform)
@@ -369,11 +369,8 @@ class ROMScanningService:
         return []
 
     def _create_rom_entry(
-        self,
-        file_path: Path,
-        platform: BasePlatform,
-        internal_path: Optional[str] = None
-    ) -> Optional[ROMEntry]:
+        self, file_path: Path, platform: BasePlatform, internal_path: str | None = None
+    ) -> ROMEntry | None:
         """Create a ROM entry for a validated file."""
         try:
             # Get or create fingerprint in database
@@ -381,14 +378,12 @@ class ROMScanningService:
                 str(file_path), internal_path
             )
 
-            if fingerprint_data['status'] == FingerprintStatus.ERROR:
+            if fingerprint_data["status"] == FingerprintStatus.ERROR:
                 return None
 
             # Parse the ROM file
             rom_entry = platform.parse_rom_file(
-                file_path,
-                fingerprint_data['fingerprint'],
-                internal_path
+                file_path, fingerprint_data["fingerprint"], internal_path
             )
 
             if rom_entry:
@@ -400,10 +395,10 @@ class ROMScanningService:
             print(f"Error creating ROM entry for {file_path}: {e}")
             return None
 
-    def get_scan_statistics(self) -> Dict[str, Any]:
+    def get_scan_statistics(self) -> dict[str, Any]:
         """Get scanning statistics."""
         return {
-            'is_scanning': self._is_scanning,
-            'database_entries': len(self._rom_database.fingerprints) if self._rom_database else 0,
-            'max_workers': self._max_workers,
+            "is_scanning": self._is_scanning,
+            "database_entries": len(self._rom_database.fingerprints) if self._rom_database else 0,
+            "max_workers": self._max_workers,
         }

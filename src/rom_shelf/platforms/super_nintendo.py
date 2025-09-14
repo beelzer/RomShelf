@@ -61,7 +61,7 @@ class SuperNintendoPlatform(BasePlatform):
                 label="Show Dump Status",
                 description="Display ROM dump quality status (verified, beta, etc.)",
                 setting_type=SettingType.BOOLEAN,
-                default_value=True
+                default_value=True,
             ),
             PlatformSetting(
                 key="preferred_format",
@@ -69,17 +69,17 @@ class SuperNintendoPlatform(BasePlatform):
                 description="Preferred SNES ROM format when multiple formats are available",
                 setting_type=SettingType.CHOICE,
                 default_value=".sfc",
-                choices=[".sfc", ".smc"]
+                choices=[".sfc", ".smc"],
             ),
             PlatformSetting(
                 key="filter_bad_dumps",
                 label="Filter Bad Dumps",
                 description="Hide ROMs marked as bad dumps in scan results",
                 setting_type=SettingType.BOOLEAN,
-                default_value=False
+                default_value=False,
             ),
             PlatformUtils.create_header_validation_setting(),
-            PlatformUtils.create_max_file_size_setting(default_mb=6, max_mb=12)
+            PlatformUtils.create_max_file_size_setting(default_mb=6, max_mb=12),
         ]
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
@@ -100,10 +100,7 @@ class SuperNintendoPlatform(BasePlatform):
             file_type = extension.upper()
 
         metadata = PlatformUtils.create_base_metadata(
-            file_path,
-            version=version,
-            dump_status=dump_status,
-            file_type=file_type
+            file_path, version=version, dump_status=dump_status, file_type=file_type
         )
 
         return metadata
@@ -111,14 +108,12 @@ class SuperNintendoPlatform(BasePlatform):
     def validate_rom(self, file_path: Path) -> bool:
         """Validate if file is a valid ROM for this platform."""
         # Check file exists and has correct extension
-        if not PlatformUtils.validate_file_exists_and_extension(
-            file_path, [".sfc", ".smc"]
-        ):
+        if not PlatformUtils.validate_file_exists_and_extension(file_path, [".sfc", ".smc"]):
             return False
 
         # Basic size check - SNES ROMs are typically 256KB to 6MB
         return PlatformUtils.validate_file_size(
             file_path,
-            min_size=256 * 1024,      # 256KB minimum
-            max_size=6 * 1024 * 1024  # 6MB maximum
+            min_size=256 * 1024,  # 256KB minimum
+            max_size=6 * 1024 * 1024,  # 6MB maximum
         )

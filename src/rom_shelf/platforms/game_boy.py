@@ -52,10 +52,10 @@ class GameBoyPlatform(BasePlatform):
                 label="Detect Color Game Boy Support",
                 description="Automatically detect if GB games support Game Boy Color features",
                 setting_type=SettingType.BOOLEAN,
-                default_value=True
+                default_value=True,
             ),
             PlatformUtils.create_header_validation_setting(),
-            PlatformUtils.create_max_file_size_setting(default_mb=8, max_mb=16)
+            PlatformUtils.create_max_file_size_setting(default_mb=8, max_mb=16),
         ]
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
@@ -65,14 +65,12 @@ class GameBoyPlatform(BasePlatform):
     def validate_rom(self, file_path: Path) -> bool:
         """Validate if file is a valid ROM for this platform."""
         # Check file exists and has correct extension
-        if not PlatformUtils.validate_file_exists_and_extension(
-            file_path, [".gb"]
-        ):
+        if not PlatformUtils.validate_file_exists_and_extension(file_path, [".gb"]):
             return False
 
         # Basic size check - Game Boy ROMs are typically 32KB to 8MB
         return PlatformUtils.validate_file_size(
             file_path,
-            min_size=32 * 1024,     # 32KB minimum
-            max_size=8 * 1024 * 1024  # 8MB maximum
+            min_size=32 * 1024,  # 32KB minimum
+            max_size=8 * 1024 * 1024,  # 8MB maximum
         )

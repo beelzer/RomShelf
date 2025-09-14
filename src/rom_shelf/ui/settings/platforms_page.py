@@ -19,16 +19,14 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
-    QTreeWidget,
-    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from ...core.settings import Settings
 from ...platforms.platform_registry import PlatformRegistry
-from .settings_base import SettingsPage, normalize_path_display
 from ..themes.themed_widget import ThemeHelper
+from .settings_base import SettingsPage, normalize_path_display
 
 
 class PlatformsPage(SettingsPage):
@@ -62,7 +60,9 @@ class PlatformsPage(SettingsPage):
         # Buttons
         button_layout = QHBoxLayout()
         self._bulk_import_button = QPushButton("Bulk Import")
-        self._bulk_import_button.setToolTip("Select a parent directory to auto-detect platform subdirectories")
+        self._bulk_import_button.setToolTip(
+            "Select a parent directory to auto-detect platform subdirectories"
+        )
         self._refresh_button = QPushButton("Refresh")
 
         button_layout.addWidget(self._bulk_import_button)
@@ -86,7 +86,9 @@ class PlatformsPage(SettingsPage):
         self._directory_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
         # Set up tooltips and interaction
-        self._directory_table.setToolTip("Right-click for options • Double-click directories to edit")
+        self._directory_table.setToolTip(
+            "Right-click for options • Double-click directories to edit"
+        )
 
         layout.addWidget(self._directory_table)
 
@@ -124,12 +126,14 @@ class PlatformsPage(SettingsPage):
             # Platform name with icon/status
             platform_item = QTableWidgetItem(platform.name)
             platform_item.setFlags(platform_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            platform_item.setData(Qt.ItemDataRole.UserRole, platform.platform_id)  # Store platform ID
+            platform_item.setData(
+                Qt.ItemDataRole.UserRole, platform.platform_id
+            )  # Store platform ID
             self._directory_table.setItem(row, 0, platform_item)
 
             # ROM directories with better formatting
             platform_settings = self._settings.platform_settings.get(platform.platform_id, {})
-            directories = platform_settings.get('rom_directories', [])
+            directories = platform_settings.get("rom_directories", [])
 
             if directories:
                 # Show number of directories and first one as preview
@@ -267,7 +271,7 @@ class PlatformsPage(SettingsPage):
             # Update settings
             if platform_id not in self._settings.platform_settings:
                 self._settings.platform_settings[platform_id] = {}
-            self._settings.platform_settings[platform_id]['rom_directories'] = new_directories
+            self._settings.platform_settings[platform_id]["rom_directories"] = new_directories
 
             self._refresh_table()
             self.settings_changed.emit()
@@ -283,12 +287,12 @@ class PlatformsPage(SettingsPage):
             self,
             "Clear Directories",
             f"Clear all ROM directories for {platform_name}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             if platform_id in self._settings.platform_settings:
-                self._settings.platform_settings[platform_id]['rom_directories'] = []
+                self._settings.platform_settings[platform_id]["rom_directories"] = []
             self._refresh_table()
             self.settings_changed.emit()
             # Save settings immediately
@@ -309,10 +313,10 @@ class PlatformsPage(SettingsPage):
             if platform_id not in self._settings.platform_settings:
                 self._settings.platform_settings[platform_id] = {}
 
-            if 'rom_directories' not in self._settings.platform_settings[platform_id]:
-                self._settings.platform_settings[platform_id]['rom_directories'] = []
+            if "rom_directories" not in self._settings.platform_settings[platform_id]:
+                self._settings.platform_settings[platform_id]["rom_directories"] = []
 
-            self._settings.platform_settings[platform_id]['rom_directories'].append(directory)
+            self._settings.platform_settings[platform_id]["rom_directories"].append(directory)
 
             # Refresh table and emit change
             self._refresh_table()
@@ -324,19 +328,14 @@ class PlatformsPage(SettingsPage):
     def _remove_directory(self, platform_id: str) -> None:
         """Remove directories from the specified platform."""
         platform_settings = self._settings.platform_settings.get(platform_id, {})
-        directories = platform_settings.get('rom_directories', [])
+        directories = platform_settings.get("rom_directories", [])
 
         if not directories:
             return
 
         # Let user choose which directory to remove
         directory, ok = QInputDialog.getItem(
-            self,
-            "Remove Directory",
-            "Select directory to remove:",
-            directories,
-            0,
-            False
+            self, "Remove Directory", "Select directory to remove:", directories, 0, False
         )
 
         if ok and directory:
@@ -350,8 +349,7 @@ class PlatformsPage(SettingsPage):
     def _bulk_import_directories(self) -> None:
         """Bulk import directories by scanning a parent folder and auto-assigning to platforms."""
         parent_dir = QFileDialog.getExistingDirectory(
-            self,
-            "Select Parent Directory Containing Platform Folders"
+            self, "Select Parent Directory Containing Platform Folders"
         )
         if not parent_dir:
             return
@@ -363,7 +361,7 @@ class PlatformsPage(SettingsPage):
             QMessageBox.information(
                 self,
                 "No Platform Directories Found",
-                f"No subdirectories matching platform names were found in:\n{parent_dir}"
+                f"No subdirectories matching platform names were found in:\n{parent_dir}",
             )
             return
 
@@ -375,11 +373,11 @@ class PlatformsPage(SettingsPage):
                 if platform_id not in self._settings.platform_settings:
                     self._settings.platform_settings[platform_id] = {}
 
-                if 'rom_directories' not in self._settings.platform_settings[platform_id]:
-                    self._settings.platform_settings[platform_id]['rom_directories'] = []
+                if "rom_directories" not in self._settings.platform_settings[platform_id]:
+                    self._settings.platform_settings[platform_id]["rom_directories"] = []
 
                 # Add directories that aren't already present
-                existing = self._settings.platform_settings[platform_id]['rom_directories']
+                existing = self._settings.platform_settings[platform_id]["rom_directories"]
                 for directory in directories:
                     if str(directory) not in existing:
                         existing.append(str(directory))
@@ -406,18 +404,18 @@ class PlatformsPage(SettingsPage):
             patterns.append(platform.platform_id.lower())
 
             # Map to exact directory names from user's ROM structure
-            if platform.platform_id == 'n64':
-                patterns = ['nintendo 64']
-            elif platform.platform_id == 'gameboy':
-                patterns = ['nintendo game boy']
-            elif platform.platform_id == 'gbc':
-                patterns = ['nintendo game boy color']
-            elif platform.platform_id == 'gba':
-                patterns = ['nintendo game boy advance']
-            elif platform.platform_id == 'snes':
-                patterns = ['nintendo snes']
-            elif platform.platform_id == 'psx':
-                patterns = ['sony playstation']
+            if platform.platform_id == "n64":
+                patterns = ["nintendo 64"]
+            elif platform.platform_id == "gameboy":
+                patterns = ["nintendo game boy"]
+            elif platform.platform_id == "gbc":
+                patterns = ["nintendo game boy color"]
+            elif platform.platform_id == "gba":
+                patterns = ["nintendo game boy advance"]
+            elif platform.platform_id == "snes":
+                patterns = ["nintendo snes"]
+            elif platform.platform_id == "psx":
+                patterns = ["sony playstation"]
 
             platform_patterns[platform.platform_id] = patterns
 
@@ -458,7 +456,9 @@ class PlatformsPage(SettingsPage):
         layout = QVBoxLayout(dialog)
 
         # Instructions
-        label = QLabel("Select which directories to import. Uncheck any directories you don't want to add:")
+        label = QLabel(
+            "Select which directories to import. Uncheck any directories you don't want to add:"
+        )
         label.setWordWrap(True)
         layout.addWidget(label)
 
@@ -483,7 +483,9 @@ class PlatformsPage(SettingsPage):
         # Configure table columns
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Checkbox column
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # Platform column - fixed width
+        header.setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Fixed
+        )  # Platform column - fixed width
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Path column
         header.resizeSection(1, 130)  # Set Platform column to 130px to accommodate dropdown
 
@@ -558,7 +560,9 @@ class PlatformsPage(SettingsPage):
 
                 # Prevent "-- Select Platform --" from being selected
                 def on_selection_changed(index):
-                    if platform_dropdown.itemData(index) == "":  # Empty data means "-- Select Platform --"
+                    if (
+                        platform_dropdown.itemData(index) == ""
+                    ):  # Empty data means "-- Select Platform --"
                         # Revert to previous valid selection or first real platform
                         for i in range(1, platform_dropdown.count()):  # Skip index 0
                             if platform_dropdown.itemData(i) != "":
@@ -576,7 +580,9 @@ class PlatformsPage(SettingsPage):
 
                 table.setCellWidget(row, 1, dropdown_container)
                 # Make dropdown fit within cell
-                platform_dropdown.setFixedWidth(130)  # Full column width since container has no margins
+                platform_dropdown.setFixedWidth(
+                    130
+                )  # Full column width since container has no margins
                 # Make the dropdown list wider when opened to show full names
                 platform_dropdown.view().setMinimumWidth(250)
                 platform_dropdowns.append(platform_dropdown)
@@ -604,6 +610,7 @@ class PlatformsPage(SettingsPage):
 
         # Import summary
         summary_label = QLabel()
+
         def update_summary():
             selected_count = sum(1 for cb in checkboxes if cb.isChecked())
             summary_label.setText(f"Selected: {selected_count} of {total_matches} directories")

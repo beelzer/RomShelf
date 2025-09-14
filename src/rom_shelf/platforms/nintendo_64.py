@@ -53,24 +53,21 @@ class Nintendo64Platform(BasePlatform):
                 description="Preferred N64 ROM format when multiple formats are available",
                 setting_type=SettingType.CHOICE,
                 default_value=".z64",
-                choices=[".z64", ".n64", ".v64"]
+                choices=[".z64", ".n64", ".v64"],
             ),
             PlatformSetting(
                 key="byteswap_detection",
                 label="Auto-detect Byteswap",
                 description="Automatically detect and handle byteswapped ROM formats",
                 setting_type=SettingType.BOOLEAN,
-                default_value=True
+                default_value=True,
             ),
-            PlatformUtils.create_max_file_size_setting(default_mb=64, max_mb=128)
+            PlatformUtils.create_max_file_size_setting(default_mb=64, max_mb=128),
         ]
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
         """Parse ROM information from file."""
-        return PlatformUtils.create_base_metadata(
-            file_path,
-            file_type=file_path.suffix.upper()
-        )
+        return PlatformUtils.create_base_metadata(file_path, file_type=file_path.suffix.upper())
 
     def validate_rom(self, file_path: Path) -> bool:
         """Validate if file is a valid ROM for this platform."""
@@ -83,6 +80,6 @@ class Nintendo64Platform(BasePlatform):
         # Basic size check - N64 ROMs are typically 4MB to 64MB
         return PlatformUtils.validate_file_size(
             file_path,
-            min_size=1024 * 1024,      # 1MB minimum
-            max_size=64 * 1024 * 1024  # 64MB maximum
+            min_size=1024 * 1024,  # 1MB minimum
+            max_size=64 * 1024 * 1024,  # 64MB maximum
         )

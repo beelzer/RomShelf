@@ -1,7 +1,7 @@
 """Platform service - business logic for platform operations and configuration."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..platforms.base_platform import BasePlatform, PlatformSetting, TableColumn
 from ..platforms.platform_registry import platform_registry
@@ -14,26 +14,26 @@ class PlatformService:
         """Initialize the platform service."""
         self._registry = platform_registry
 
-    def get_all_platforms(self) -> List[BasePlatform]:
+    def get_all_platforms(self) -> list[BasePlatform]:
         """Get all available platforms."""
         return self._registry.get_all_platforms()
 
-    def get_platform(self, platform_id: str) -> Optional[BasePlatform]:
+    def get_platform(self, platform_id: str) -> BasePlatform | None:
         """Get a specific platform by ID."""
         return self._registry.get_platform(platform_id)
 
-    def get_platform_by_name(self, name: str) -> Optional[BasePlatform]:
+    def get_platform_by_name(self, name: str) -> BasePlatform | None:
         """Get a platform by its display name."""
         for platform in self.get_all_platforms():
             if platform.name.lower() == name.lower():
                 return platform
         return None
 
-    def get_platform_ids(self) -> List[str]:
+    def get_platform_ids(self) -> list[str]:
         """Get all platform IDs."""
         return [platform.platform_id for platform in self.get_all_platforms()]
 
-    def get_platform_names(self) -> List[str]:
+    def get_platform_names(self) -> list[str]:
         """Get all platform display names."""
         return [platform.name for platform in self.get_all_platforms()]
 
@@ -43,33 +43,35 @@ class PlatformService:
         return platform.name if platform else platform_id
 
     # Platform Configuration
-    def get_platform_settings(self, platform_id: str) -> List[PlatformSetting]:
+    def get_platform_settings(self, platform_id: str) -> list[PlatformSetting]:
         """Get platform-specific settings definitions."""
         platform = self.get_platform(platform_id)
         return platform.get_platform_settings() if platform else []
 
-    def get_platform_table_columns(self, platform_id: str) -> List[TableColumn]:
+    def get_platform_table_columns(self, platform_id: str) -> list[TableColumn]:
         """Get table column definitions for a platform."""
         platform = self.get_platform(platform_id)
         return platform.table_columns.copy() if platform else []
 
-    def get_platform_supported_extensions(self, platform_id: str) -> List[str]:
+    def get_platform_supported_extensions(self, platform_id: str) -> list[str]:
         """Get supported file extensions for a platform."""
         platform = self.get_platform(platform_id)
         return platform.get_supported_extensions() if platform else []
 
-    def get_platform_supported_handlers(self, platform_id: str) -> List[str]:
+    def get_platform_supported_handlers(self, platform_id: str) -> list[str]:
         """Get supported file handlers for a platform."""
         platform = self.get_platform(platform_id)
         return platform.get_supported_handlers() if platform else []
 
-    def get_platform_archive_extensions(self, platform_id: str) -> List[str]:
+    def get_platform_archive_extensions(self, platform_id: str) -> list[str]:
         """Get supported archive content extensions for a platform."""
         platform = self.get_platform(platform_id)
         return platform.get_archive_content_extensions() if platform else []
 
     # File Validation
-    def validate_file_for_platform(self, platform_id: str, file_path: Path, internal_path: Optional[str] = None) -> bool:
+    def validate_file_for_platform(
+        self, platform_id: str, file_path: Path, internal_path: str | None = None
+    ) -> bool:
         """Validate if a file is compatible with a platform."""
         platform = self.get_platform(platform_id)
         if not platform:
@@ -81,19 +83,19 @@ class PlatformService:
             print(f"Error validating file {file_path} for platform {platform_id}: {e}")
             return False
 
-    def get_file_validation_info(self, platform_id: str, file_path: Path) -> Dict[str, Any]:
+    def get_file_validation_info(self, platform_id: str, file_path: Path) -> dict[str, Any]:
         """Get detailed validation information for a file."""
         platform = self.get_platform(platform_id)
         if not platform:
-            return {'valid': False, 'reason': f'Platform {platform_id} not found'}
+            return {"valid": False, "reason": f"Platform {platform_id} not found"}
 
         try:
             # Basic checks
             if not file_path.exists():
-                return {'valid': False, 'reason': 'File does not exist'}
+                return {"valid": False, "reason": "File does not exist"}
 
             if not file_path.is_file():
-                return {'valid': False, 'reason': 'Path is not a file'}
+                return {"valid": False, "reason": "Path is not a file"}
 
             # Extension check
             extension = file_path.suffix.lower()
@@ -101,27 +103,27 @@ class PlatformService:
 
             if extension not in supported_extensions:
                 return {
-                    'valid': False,
-                    'reason': f'Extension {extension} not supported',
-                    'supported_extensions': supported_extensions
+                    "valid": False,
+                    "reason": f"Extension {extension} not supported",
+                    "supported_extensions": supported_extensions,
                 }
 
             # Platform-specific validation
             is_valid = platform.validate_file(file_path)
 
             return {
-                'valid': is_valid,
-                'extension': extension,
-                'supported_extensions': supported_extensions,
-                'file_size': file_path.stat().st_size,
-                'platform': platform.name
+                "valid": is_valid,
+                "extension": extension,
+                "supported_extensions": supported_extensions,
+                "file_size": file_path.stat().st_size,
+                "platform": platform.name,
             }
 
         except Exception as e:
-            return {'valid': False, 'reason': f'Validation error: {e}'}
+            return {"valid": False, "reason": f"Validation error: {e}"}
 
     # Platform Detection
-    def detect_platform_from_file(self, file_path: Path) -> Optional[str]:
+    def detect_platform_from_file(self, file_path: Path) -> str | None:
         """Detect the most likely platform for a given file."""
         if not file_path.exists() or not file_path.is_file():
             return None
@@ -139,7 +141,7 @@ class PlatformService:
         # Return the first match, or None if no matches
         return possible_platforms[0] if possible_platforms else None
 
-    def get_compatible_platforms(self, file_path: Path) -> List[str]:
+    def get_compatible_platforms(self, file_path: Path) -> list[str]:
         """Get all platforms compatible with a given file."""
         if not file_path.exists() or not file_path.is_file():
             return []
@@ -158,7 +160,7 @@ class PlatformService:
         return compatible
 
     # Directory Analysis
-    def detect_platform_directories(self, parent_dir: Path) -> Dict[str, List[Path]]:
+    def detect_platform_directories(self, parent_dir: Path) -> dict[str, list[Path]]:
         """Detect potential platform directories and group by platform ID."""
         matches = {}
 
@@ -175,20 +177,20 @@ class PlatformService:
             patterns.append(platform.platform_id.lower())
 
             # Add common directory name patterns
-            if platform.platform_id == 'n64':
-                patterns = ['nintendo 64', 'n64', 'nintendo64']
-            elif platform.platform_id == 'gameboy':
-                patterns = ['nintendo game boy', 'gameboy', 'gb', 'game boy']
-            elif platform.platform_id == 'gbc':
-                patterns = ['nintendo game boy color', 'gbc', 'game boy color']
-            elif platform.platform_id == 'gba':
-                patterns = ['nintendo game boy advance', 'gba', 'game boy advance']
-            elif platform.platform_id == 'snes':
-                patterns = ['nintendo snes', 'snes', 'super nintendo']
-            elif platform.platform_id == 'psx':
-                patterns = ['sony playstation', 'psx', 'playstation', 'ps1']
-            elif platform.platform_id == 'gamecube':
-                patterns = ['nintendo gamecube', 'gamecube', 'gc']
+            if platform.platform_id == "n64":
+                patterns = ["nintendo 64", "n64", "nintendo64"]
+            elif platform.platform_id == "gameboy":
+                patterns = ["nintendo game boy", "gameboy", "gb", "game boy"]
+            elif platform.platform_id == "gbc":
+                patterns = ["nintendo game boy color", "gbc", "game boy color"]
+            elif platform.platform_id == "gba":
+                patterns = ["nintendo game boy advance", "gba", "game boy advance"]
+            elif platform.platform_id == "snes":
+                patterns = ["nintendo snes", "snes", "super nintendo"]
+            elif platform.platform_id == "psx":
+                patterns = ["sony playstation", "psx", "playstation", "ps1"]
+            elif platform.platform_id == "gamecube":
+                patterns = ["nintendo gamecube", "gamecube", "gc"]
 
             platform_patterns[platform.platform_id] = patterns
 
@@ -220,74 +222,84 @@ class PlatformService:
 
         return matches
 
-    def analyze_directory_contents(self, directory: Path, platform_id: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_directory_contents(
+        self, directory: Path, platform_id: str | None = None
+    ) -> dict[str, Any]:
         """Analyze the contents of a directory for ROM files."""
         if not directory.exists() or not directory.is_dir():
-            return {'error': 'Directory does not exist'}
+            return {"error": "Directory does not exist"}
 
         analysis = {
-            'directory': str(directory),
-            'total_files': 0,
-            'rom_files': 0,
-            'platforms': {},
-            'extensions': {},
-            'errors': []
+            "directory": str(directory),
+            "total_files": 0,
+            "rom_files": 0,
+            "platforms": {},
+            "extensions": {},
+            "errors": [],
         }
 
         try:
             # Get all files recursively
-            files = list(directory.rglob('*'))
+            files = list(directory.rglob("*"))
             files = [f for f in files if f.is_file()]
-            analysis['total_files'] = len(files)
+            analysis["total_files"] = len(files)
 
             # Analyze each file
             for file_path in files:
                 try:
                     extension = file_path.suffix.lower()
                     if extension:
-                        analysis['extensions'][extension] = analysis['extensions'].get(extension, 0) + 1
+                        analysis["extensions"][extension] = (
+                            analysis["extensions"].get(extension, 0) + 1
+                        )
 
                     # If platform is specified, check against it
                     if platform_id:
                         if self.validate_file_for_platform(platform_id, file_path):
-                            analysis['rom_files'] += 1
-                            analysis['platforms'][platform_id] = analysis['platforms'].get(platform_id, 0) + 1
+                            analysis["rom_files"] += 1
+                            analysis["platforms"][platform_id] = (
+                                analysis["platforms"].get(platform_id, 0) + 1
+                            )
                     else:
                         # Check against all platforms
                         compatible_platforms = self.get_compatible_platforms(file_path)
                         if compatible_platforms:
-                            analysis['rom_files'] += 1
+                            analysis["rom_files"] += 1
                             for platform in compatible_platforms:
-                                analysis['platforms'][platform] = analysis['platforms'].get(platform, 0) + 1
+                                analysis["platforms"][platform] = (
+                                    analysis["platforms"].get(platform, 0) + 1
+                                )
 
                 except Exception as e:
-                    analysis['errors'].append(f"Error analyzing {file_path}: {e}")
+                    analysis["errors"].append(f"Error analyzing {file_path}: {e}")
 
         except Exception as e:
-            analysis['errors'].append(f"Error scanning directory: {e}")
+            analysis["errors"].append(f"Error scanning directory: {e}")
 
         return analysis
 
     # Utility Methods
-    def get_platform_statistics(self) -> Dict[str, Any]:
+    def get_platform_statistics(self) -> dict[str, Any]:
         """Get statistics about all platforms."""
         platforms = self.get_all_platforms()
 
         return {
-            'total_platforms': len(platforms),
-            'platforms': [
+            "total_platforms": len(platforms),
+            "platforms": [
                 {
-                    'id': p.platform_id,
-                    'name': p.name,
-                    'supported_extensions': len(p.get_supported_extensions()),
-                    'table_columns': len(p.table_columns),
-                    'has_settings': len(p.get_platform_settings()) > 0
+                    "id": p.platform_id,
+                    "name": p.name,
+                    "supported_extensions": len(p.get_supported_extensions()),
+                    "table_columns": len(p.table_columns),
+                    "has_settings": len(p.get_platform_settings()) > 0,
                 }
                 for p in platforms
-            ]
+            ],
         }
 
-    def validate_platform_configuration(self, platform_id: str, config: Dict[str, Any]) -> tuple[bool, List[str]]:
+    def validate_platform_configuration(
+        self, platform_id: str, config: dict[str, Any]
+    ) -> tuple[bool, list[str]]:
         """Validate a platform configuration."""
         platform = self.get_platform(platform_id)
         if not platform:
@@ -296,7 +308,7 @@ class PlatformService:
         errors = []
 
         # Validate ROM directories
-        rom_directories = config.get('rom_directories', [])
+        rom_directories = config.get("rom_directories", [])
         for directory in rom_directories:
             path = Path(directory)
             if not path.exists():
@@ -305,7 +317,7 @@ class PlatformService:
                 errors.append(f"ROM directory path is not a directory: {directory}")
 
         # Validate supported formats
-        supported_formats = config.get('supported_formats', [])
+        supported_formats = config.get("supported_formats", [])
         platform_extensions = platform.get_supported_extensions()
         for format_ext in supported_formats:
             if format_ext not in platform_extensions:

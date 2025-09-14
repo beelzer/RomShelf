@@ -11,6 +11,7 @@ from ..models.rom_entry import ROMEntry
 
 class SettingType(Enum):
     """Types of settings that platforms can define."""
+
     BOOLEAN = "boolean"
     INTEGER = "integer"
     FLOAT = "float"
@@ -26,15 +27,15 @@ class SettingType(Enum):
 class PlatformSetting:
     """Defines a single platform setting."""
 
-    key: str                           # Internal key for the setting
-    label: str                         # Display label in UI
-    description: str                   # Help text/tooltip
-    setting_type: SettingType         # Type of setting
-    default_value: Any                # Default value
+    key: str  # Internal key for the setting
+    label: str  # Display label in UI
+    description: str  # Help text/tooltip
+    setting_type: SettingType  # Type of setting
+    default_value: Any  # Default value
     choices: list[str] | None = None  # For CHOICE type or FORMAT_LIST options
     min_value: int | float | None = None  # For INTEGER/FLOAT
     max_value: int | float | None = None  # For INTEGER/FLOAT
-    required: bool = True             # Whether setting is required
+    required: bool = True  # Whether setting is required
 
 
 @dataclass
@@ -161,6 +162,7 @@ class BasePlatform(ABC):
 
         # Clean the display name and extract additional metadata
         from ..utils.name_cleaner import get_display_name_and_metadata
+
         display_name, extracted_metadata = get_display_name_and_metadata(original_name)
 
         # Merge extracted metadata with platform-specific metadata

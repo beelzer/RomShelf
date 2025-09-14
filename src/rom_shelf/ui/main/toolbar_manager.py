@@ -82,7 +82,7 @@ class ToolbarManager(QObject):
     def apply_font_settings(self, font) -> None:
         """Apply font settings to toolbar components."""
         # Apply to menu bar
-        if hasattr(self._main_window, 'menuBar'):
+        if hasattr(self._main_window, "menuBar"):
             self._main_window.menuBar().setFont(font)
 
         # Apply to status bar

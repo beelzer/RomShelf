@@ -17,6 +17,7 @@ COMPATIBLE_VERSIONS = [3]  # Versions that can be loaded without rebuild
 
 class FingerprintStatus(Enum):
     """Status of ROM fingerprint verification."""
+
     VALID = "valid"
     CHANGED = "changed"
     MISSING = "missing"
@@ -47,7 +48,6 @@ class ROMFingerprint:
     region: str = ""
     revision: str = ""
 
-
     # Database metadata
     created_time: float = 0.0
     last_verified_time: float = 0.0
@@ -77,7 +77,7 @@ class ROMDatabase:
         """Load database from disk with version checking."""
         try:
             if self.db_path.exists():
-                with open(self.db_path, encoding='utf-8') as f:
+                with open(self.db_path, encoding="utf-8") as f:
                     data = json.load(f)
 
                 # Validate database structure
@@ -87,10 +87,12 @@ class ROMDatabase:
                     return
 
                 # Check database version
-                db_version = data.get('version', 1)  # Default to version 1 for old databases
+                db_version = data.get("version", 1)  # Default to version 1 for old databases
                 if db_version not in COMPATIBLE_VERSIONS:
-                    print(f"Database version {db_version} is incompatible with current version "
-                          f"{DATABASE_VERSION}")
+                    print(
+                        f"Database version {db_version} is incompatible with current version "
+                        f"{DATABASE_VERSION}"
+                    )
                     print("Database will be rebuilt to update schema")
                     self._data = {}
                     # Mark for rebuild by removing the old file
@@ -98,7 +100,7 @@ class ROMDatabase:
                     return
 
                 # Load ROM entries
-                self._data = data.get('roms', {})
+                self._data = data.get("roms", {})
                 print(f"Loaded ROM database v{db_version} with {len(self._data)} entries")
             else:
                 self._data = {}
@@ -134,9 +136,9 @@ class ROMDatabase:
                 with self._data_lock:
                     # Prepare data structure
                     db_data = {
-                        'version': DATABASE_VERSION,
-                        'created_time': time.time(),
-                        'roms': self._data.copy()  # Create copy to avoid race conditions
+                        "version": DATABASE_VERSION,
+                        "created_time": time.time(),
+                        "roms": self._data.copy(),  # Create copy to avoid race conditions
                     }
 
                 # Use unique temp file name to avoid conflicts
@@ -144,7 +146,7 @@ class ROMDatabase:
                 temp_path = self.db_path.parent / temp_name
 
                 # Write to temp file
-                with open(temp_path, 'w', encoding='utf-8') as f:
+                with open(temp_path, "w", encoding="utf-8") as f:
                     json.dump(db_data, f, indent=2, sort_keys=True)
 
                 # Try to replace main database file
@@ -215,17 +217,17 @@ class ROMDatabase:
                 header_data = b""
 
                 try:
-                    if archive_ext == '.zip':
-                        with zipfile.ZipFile(file_path, 'r') as zip_file:
+                    if archive_ext == ".zip":
+                        with zipfile.ZipFile(file_path, "r") as zip_file:
                             with zip_file.open(internal_path) as rom_file:
                                 header_data = rom_file.read(1024)
-                    elif archive_ext == '.7z':
-                        with py7zr.SevenZipFile(file_path, mode='r') as archive:
+                    elif archive_ext == ".7z":
+                        with py7zr.SevenZipFile(file_path, mode="r") as archive:
                             extracted = archive.read([internal_path])
                             if internal_path in extracted:
                                 data = extracted[internal_path].read()
                                 header_data = data[:1024] if data else b""
-                    elif archive_ext == '.rar':
+                    elif archive_ext == ".rar":
                         with rarfile.RarFile(file_path) as rar_file:
                             with rar_file.open(internal_path) as rom_file:
                                 header_data = rom_file.read(1024)
@@ -233,7 +235,7 @@ class ROMDatabase:
                     return ""
             else:
                 # Handle direct files
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     header_data = f.read(1024)
 
             return hashlib.sha256(header_data).hexdigest()
@@ -261,21 +263,24 @@ class ROMDatabase:
                 archive_ext = file_path.suffix.lower()
 
                 try:
-                    if archive_ext == '.zip':
+                    if archive_ext == ".zip":
                         import zipfile
-                        with zipfile.ZipFile(file_path, 'r') as zip_file:
+
+                        with zipfile.ZipFile(file_path, "r") as zip_file:
                             with zip_file.open(internal_path) as rom_file:
                                 while chunk := rom_file.read(buffer_size):
                                     md5_hash.update(chunk)
-                    elif archive_ext == '.7z':
+                    elif archive_ext == ".7z":
                         import py7zr
-                        with py7zr.SevenZipFile(file_path, mode='r') as archive:
+
+                        with py7zr.SevenZipFile(file_path, mode="r") as archive:
                             extracted = archive.read([internal_path])
                             if internal_path in extracted:
                                 data = extracted[internal_path].read()
                                 md5_hash.update(data)
-                    elif archive_ext == '.rar':
+                    elif archive_ext == ".rar":
                         import rarfile
+
                         with rarfile.RarFile(file_path) as rar_file:
                             with rar_file.open(internal_path) as rom_file:
                                 while chunk := rom_file.read(buffer_size):
@@ -284,7 +289,7 @@ class ROMDatabase:
                     return ""
             else:
                 # Handle direct files with buffered reading
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     while chunk := f.read(buffer_size):
                         md5_hash.update(chunk)
 
@@ -318,35 +323,35 @@ class ROMDatabase:
                 archive_ext = file_path.suffix.lower()
 
                 try:
-                    if archive_ext == '.zip':
-                        with zipfile.ZipFile(file_path, 'r') as zip_file:
+                    if archive_ext == ".zip":
+                        with zipfile.ZipFile(file_path, "r") as zip_file:
                             with zip_file.open(internal_path) as rom_file:
                                 crc = 0
                                 while chunk := rom_file.read(buffer_size):
                                     crc = zlib.crc32(chunk, crc)
-                                return crc & 0xffffffff
-                    elif archive_ext == '.7z':
-                        with py7zr.SevenZipFile(file_path, mode='r') as archive:
+                                return crc & 0xFFFFFFFF
+                    elif archive_ext == ".7z":
+                        with py7zr.SevenZipFile(file_path, mode="r") as archive:
                             extracted = archive.read([internal_path])
                             if internal_path in extracted:
                                 data = extracted[internal_path].read()
-                                return zlib.crc32(data) & 0xffffffff if data else 0
-                    elif archive_ext == '.rar':
+                                return zlib.crc32(data) & 0xFFFFFFFF if data else 0
+                    elif archive_ext == ".rar":
                         with rarfile.RarFile(file_path) as rar_file:
                             with rar_file.open(internal_path) as rom_file:
                                 crc = 0
                                 while chunk := rom_file.read(buffer_size):
                                     crc = zlib.crc32(chunk, crc)
-                                return crc & 0xffffffff
+                                return crc & 0xFFFFFFFF
                 except:
                     return 0
             else:
                 # Handle direct files with larger buffer
                 crc = 0
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     while chunk := f.read(buffer_size):
                         crc = zlib.crc32(chunk, crc)
-                return crc & 0xffffffff  # Ensure unsigned 32-bit
+                return crc & 0xFFFFFFFF  # Ensure unsigned 32-bit
 
         except Exception:
             return 0
@@ -402,7 +407,9 @@ class ROMDatabase:
             print(f"Error verifying fingerprint for {fingerprint.file_path}: {e}")
             return FingerprintStatus.CORRUPTED
 
-    def get_rom_fingerprint(self, file_path: Path, internal_path: str | None = None) -> ROMFingerprint | None:
+    def get_rom_fingerprint(
+        self, file_path: Path, internal_path: str | None = None
+    ) -> ROMFingerprint | None:
         """Get stored ROM fingerprint.
 
         Args:
@@ -453,7 +460,7 @@ class ROMDatabase:
         internal_path: str | None = None,
         md5_hash: str | None = None,
         platform: str = "",
-        quick_mode: bool = False
+        quick_mode: bool = False,
     ) -> ROMFingerprint:
         """Create comprehensive ROM fingerprint.
 
@@ -481,7 +488,7 @@ class ROMDatabase:
             internal_path=internal_path,
             created_time=current_time,
             last_verified_time=current_time,
-            verification_count=1
+            verification_count=1,
         )
 
         # Archive-specific data
@@ -501,7 +508,6 @@ class ROMDatabase:
             fingerprint.md5_hash = self._calculate_md5(file_path, internal_path)
 
         return fingerprint
-
 
     def get_cached_md5(self, file_path: Path, internal_path: str | None = None) -> str | None:
         """Get cached MD5 hash if file hasn't changed.
@@ -523,7 +529,6 @@ class ROMDatabase:
             return fingerprint.md5_hash
 
         return None
-
 
     def cleanup_missing_roms(self) -> int:
         """Remove database entries for ROMs that no longer exist.
@@ -579,9 +584,11 @@ class ROMDatabase:
                 continue
 
         return {
-            'total_entries': total_entries,
-            'platforms': platforms,
-            'database_size_mb': self.db_path.stat().st_size / (1024 * 1024) if self.db_path.exists() else 0
+            "total_entries": total_entries,
+            "platforms": platforms,
+            "database_size_mb": self.db_path.stat().st_size / (1024 * 1024)
+            if self.db_path.exists()
+            else 0,
         }
 
 

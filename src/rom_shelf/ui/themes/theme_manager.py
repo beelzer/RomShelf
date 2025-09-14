@@ -1,6 +1,5 @@
 """Theme manager for handling theme switching and application."""
 
-from typing import Dict, Optional
 from PySide6.QtWidgets import QApplication
 
 from .base_theme import BaseTheme
@@ -12,8 +11,8 @@ class ThemeManager:
     """Manages application themes and provides styling services."""
 
     def __init__(self):
-        self._themes: Dict[str, BaseTheme] = {}
-        self._current_theme: Optional[BaseTheme] = None
+        self._themes: dict[str, BaseTheme] = {}
+        self._current_theme: BaseTheme | None = None
         self._register_default_themes()
 
     def _register_default_themes(self) -> None:
@@ -25,7 +24,7 @@ class ThemeManager:
         """Register a new theme."""
         self._themes[theme.name.lower()] = theme
 
-    def get_available_themes(self) -> Dict[str, str]:
+    def get_available_themes(self) -> dict[str, str]:
         """Get available theme names mapped to display names."""
         return {key: theme.name for key, theme in self._themes.items()}
 
@@ -37,7 +36,7 @@ class ThemeManager:
             return True
         return False
 
-    def get_current_theme(self) -> Optional[BaseTheme]:
+    def get_current_theme(self) -> BaseTheme | None:
         """Get the currently active theme."""
         return self._current_theme
 
@@ -47,7 +46,7 @@ class ThemeManager:
             stylesheet = self._current_theme.get_complete_stylesheet()
             app.setStyleSheet(stylesheet)
 
-    def apply_theme_to_widget(self, widget, theme_name: Optional[str] = None) -> None:
+    def apply_theme_to_widget(self, widget, theme_name: str | None = None) -> None:
         """Apply theme to a specific widget."""
         theme = self._current_theme
         if theme_name:
@@ -86,7 +85,7 @@ class ThemeManager:
 
 
 # Global theme manager instance
-_theme_manager: Optional[ThemeManager] = None
+_theme_manager: ThemeManager | None = None
 
 
 def get_theme_manager() -> ThemeManager:

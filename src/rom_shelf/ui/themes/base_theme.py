@@ -2,12 +2,12 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass
 class ColorPalette:
     """Color palette for a theme with WCAG AA compliance."""
+
     # Core colors
     primary: str
     primary_hover: str
@@ -599,19 +599,21 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
 
     def get_complete_stylesheet(self) -> str:
         """Get the complete stylesheet for the theme."""
-        return "\n\n".join([
-            self.get_window_stylesheet(),
-            self.get_navigation_stylesheet(),
-            self.get_table_stylesheet(),
-            self.get_form_stylesheet(),
-            self.get_scrollbar_stylesheet()
-        ])
+        return "\n\n".join(
+            [
+                self.get_window_stylesheet(),
+                self.get_navigation_stylesheet(),
+                self.get_table_stylesheet(),
+                self.get_form_stylesheet(),
+                self.get_scrollbar_stylesheet(),
+            ]
+        )
 
-    def get_status_colors(self) -> Dict[str, str]:
+    def get_status_colors(self) -> dict[str, str]:
         """Get colors for different status states."""
         return {
             "success": self.colors.success,
             "warning": self.colors.warning,
             "error": self.colors.error,
-            "info": self.colors.info
+            "info": self.colors.info,
         }

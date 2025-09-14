@@ -68,13 +68,17 @@ class Settings:
         try:
             # Import here to avoid circular imports
             from ..platforms.platform_registry import PlatformRegistry
+
             registry = PlatformRegistry()
 
             for platform in registry.get_all_platforms():
                 platform_id = platform.platform_id
 
                 # Always initialize if platform doesn't exist or is empty
-                if platform_id not in self.platform_settings or not self.platform_settings[platform_id]:
+                if (
+                    platform_id not in self.platform_settings
+                    or not self.platform_settings[platform_id]
+                ):
                     # Get platform-specific settings and create defaults dict
                     platform_settings_def = platform.get_platform_settings()
                     defaults = {}

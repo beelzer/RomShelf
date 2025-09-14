@@ -54,14 +54,16 @@ class PlayStation1Platform(BasePlatform):
         return [
             PlatformUtils.create_rom_directories_setting("PlayStation 1"),
             PlatformUtils.create_scan_subdirectories_setting(),
-            PlatformUtils.create_supported_formats_setting("PlayStation", [".iso", ".cue", ".bin", ".chd"]),
+            PlatformUtils.create_supported_formats_setting(
+                "PlayStation", [".iso", ".cue", ".bin", ".chd"]
+            ),
             PlatformUtils.create_supported_archives_setting(),
             PlatformSetting(
                 key="prefer_cue_over_iso",
                 label="Prefer CUE over ISO",
                 description="When both CUE and ISO files are present, prioritize CUE files for better audio support",
                 setting_type=SettingType.BOOLEAN,
-                default_value=True
+                default_value=True,
             ),
             PlatformSetting(
                 key="disc_naming_format",
@@ -69,9 +71,9 @@ class PlayStation1Platform(BasePlatform):
                 description="How to detect and handle multi-disc games",
                 setting_type=SettingType.CHOICE,
                 default_value="Disc N",
-                choices=["Disc N", "Disk N", "(Disc N)", "(Disk N)", "CD N", "(CD N)"]
+                choices=["Disc N", "Disk N", "(Disc N)", "(Disk N)", "CD N", "(CD N)"],
             ),
-            PlatformUtils.create_max_file_size_setting(default_mb=800, min_mb=100, max_mb=2000)
+            PlatformUtils.create_max_file_size_setting(default_mb=800, min_mb=100, max_mb=2000),
         ]
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:

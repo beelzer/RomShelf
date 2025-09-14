@@ -1,6 +1,7 @@
 """Utility class for widgets that need themed styling."""
 
 from typing import Protocol
+
 from ..themes import get_theme_manager
 
 
@@ -42,12 +43,7 @@ class ThemeHelper:
         theme_manager = get_theme_manager()
         if theme_manager.get_current_theme():
             return theme_manager.get_current_theme().get_status_colors()
-        return {
-            "success": "#4caf50",
-            "warning": "#ff9800",
-            "error": "#f44336",
-            "info": "#2196f3"
-        }
+        return {"success": "#4caf50", "warning": "#ff9800", "error": "#f44336", "info": "#2196f3"}
 
     @staticmethod
     def configure_button_sizing(button, min_width: int = None, min_height: int = None) -> None:

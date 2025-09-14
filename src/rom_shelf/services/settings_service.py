@@ -1,7 +1,8 @@
 """Settings service - centralized settings management and validation."""
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any
 
 from ..core.settings import Settings, SettingsManager
 
@@ -12,7 +13,7 @@ class SettingsService:
     def __init__(self, settings_manager: SettingsManager) -> None:
         """Initialize the settings service."""
         self._settings_manager = settings_manager
-        self._change_callbacks: List[Callable[[], None]] = []
+        self._change_callbacks: list[Callable[[], None]] = []
 
     @property
     def settings(self) -> Settings:
@@ -107,7 +108,7 @@ class SettingsService:
     # RetroAchievements Settings
     def get_retroachievements_username(self) -> str:
         """Get RetroAchievements username."""
-        return getattr(self.settings, 'retroachievements_username', '')
+        return getattr(self.settings, "retroachievements_username", "")
 
     def set_retroachievements_username(self, username: str) -> None:
         """Set RetroAchievements username."""
@@ -115,7 +116,7 @@ class SettingsService:
 
     def get_retroachievements_api_key(self) -> str:
         """Get RetroAchievements API key."""
-        return getattr(self.settings, 'retroachievements_api_key', '')
+        return getattr(self.settings, "retroachievements_api_key", "")
 
     def set_retroachievements_api_key(self, api_key: str) -> None:
         """Set RetroAchievements API key."""
@@ -128,7 +129,7 @@ class SettingsService:
         return bool(username and api_key)
 
     # Platform Settings
-    def get_platform_settings(self, platform_id: str) -> Dict[str, Any]:
+    def get_platform_settings(self, platform_id: str) -> dict[str, Any]:
         """Get settings for a specific platform."""
         return self.settings.platform_settings.get(platform_id, {})
 
@@ -138,12 +139,12 @@ class SettingsService:
             self.settings.platform_settings[platform_id] = {}
         self.settings.platform_settings[platform_id][key] = value
 
-    def get_platform_directories(self, platform_id: str) -> List[str]:
+    def get_platform_directories(self, platform_id: str) -> list[str]:
         """Get ROM directories for a specific platform."""
         platform_settings = self.get_platform_settings(platform_id)
-        return platform_settings.get('rom_directories', [])
+        return platform_settings.get("rom_directories", [])
 
-    def set_platform_directories(self, platform_id: str, directories: List[str]) -> None:
+    def set_platform_directories(self, platform_id: str, directories: list[str]) -> None:
         """Set ROM directories for a specific platform."""
         # Validate that directories exist
         valid_directories = []
@@ -154,7 +155,7 @@ class SettingsService:
             else:
                 print(f"Warning: Directory does not exist: {directory}")
 
-        self.set_platform_setting(platform_id, 'rom_directories', valid_directories)
+        self.set_platform_setting(platform_id, "rom_directories", valid_directories)
 
     def add_platform_directory(self, platform_id: str, directory: str) -> bool:
         """Add a directory to a platform's ROM directories."""
@@ -186,34 +187,34 @@ class SettingsService:
 
     def clear_platform_directories(self, platform_id: str) -> None:
         """Clear all directories for a platform."""
-        self.set_platform_setting(platform_id, 'rom_directories', [])
+        self.set_platform_setting(platform_id, "rom_directories", [])
 
     def get_platform_scan_subdirectories(self, platform_id: str) -> bool:
         """Get whether to scan subdirectories for a platform."""
         platform_settings = self.get_platform_settings(platform_id)
-        return platform_settings.get('scan_subdirectories', True)
+        return platform_settings.get("scan_subdirectories", True)
 
     def set_platform_scan_subdirectories(self, platform_id: str, scan_subdirs: bool) -> None:
         """Set whether to scan subdirectories for a platform."""
-        self.set_platform_setting(platform_id, 'scan_subdirectories', scan_subdirs)
+        self.set_platform_setting(platform_id, "scan_subdirectories", scan_subdirs)
 
     def get_platform_handle_archives(self, platform_id: str) -> bool:
         """Get whether to handle archives for a platform."""
         platform_settings = self.get_platform_settings(platform_id)
-        return platform_settings.get('handle_archives', True)
+        return platform_settings.get("handle_archives", True)
 
     def set_platform_handle_archives(self, platform_id: str, handle_archives: bool) -> None:
         """Set whether to handle archives for a platform."""
-        self.set_platform_setting(platform_id, 'handle_archives', handle_archives)
+        self.set_platform_setting(platform_id, "handle_archives", handle_archives)
 
-    def get_platform_supported_formats(self, platform_id: str) -> List[str]:
+    def get_platform_supported_formats(self, platform_id: str) -> list[str]:
         """Get supported formats for a platform."""
         platform_settings = self.get_platform_settings(platform_id)
-        return platform_settings.get('supported_formats', [])
+        return platform_settings.get("supported_formats", [])
 
-    def set_platform_supported_formats(self, platform_id: str, formats: List[str]) -> None:
+    def set_platform_supported_formats(self, platform_id: str, formats: list[str]) -> None:
         """Set supported formats for a platform."""
-        self.set_platform_setting(platform_id, 'supported_formats', formats)
+        self.set_platform_setting(platform_id, "supported_formats", formats)
 
     # Validation Methods
     def validate_retroachievements_credentials(self) -> tuple[bool, str]:
@@ -230,11 +231,11 @@ class SettingsService:
 
         return True, "Credentials appear valid"
 
-    def get_configured_platforms(self) -> List[str]:
+    def get_configured_platforms(self) -> list[str]:
         """Get list of platform IDs that have ROM directories configured."""
         configured = []
         for platform_id, settings in self.settings.platform_settings.items():
-            if settings.get('rom_directories'):
+            if settings.get("rom_directories"):
                 configured.append(platform_id)
         return configured
 
@@ -246,7 +247,7 @@ class SettingsService:
         """Get total number of directories configured across all platforms."""
         total = 0
         for platform_settings in self.settings.platform_settings.values():
-            directories = platform_settings.get('rom_directories', [])
+            directories = platform_settings.get("rom_directories", [])
             total += len(directories)
         return total
 

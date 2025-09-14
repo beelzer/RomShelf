@@ -28,8 +28,8 @@ from PySide6.QtWidgets import (
 from ...core.settings import Settings
 from ...platforms.base_platform import PlatformSetting, SettingType
 from ...platforms.platform_registry import PlatformRegistry, platform_registry
-from .settings_base import SettingsPage, normalize_path_display
 from ..themes.themed_widget import ThemeHelper
+from .settings_base import SettingsPage, normalize_path_display
 
 
 class PlatformSpecificPage(SettingsPage):
@@ -67,7 +67,9 @@ class PlatformSpecificPage(SettingsPage):
             ThemeHelper.apply_status_style(error_label, "error")
             layout.addWidget(error_label)
 
-    def _create_settings_ui(self, layout: QVBoxLayout, platform_settings: list[PlatformSetting]) -> None:
+    def _create_settings_ui(
+        self, layout: QVBoxLayout, platform_settings: list[PlatformSetting]
+    ) -> None:
         """Create UI elements for platform settings."""
         # Group settings by type
         format_settings = []
@@ -299,7 +301,9 @@ class PlatformSpecificPage(SettingsPage):
 
         return None
 
-    def _create_compact_directory_section(self, parent_layout: QVBoxLayout, setting: PlatformSetting) -> None:
+    def _create_compact_directory_section(
+        self, parent_layout: QVBoxLayout, setting: PlatformSetting
+    ) -> None:
         """Create a compact directory list section directly in the parent layout."""
         # Label
         label = QLabel(setting.label)
@@ -367,11 +371,11 @@ class PlatformSpecificPage(SettingsPage):
         platform_data = settings.platform_settings.get(self._platform_id, {})
 
         # If platform_data is a PlatformSettings object, convert to dict
-        if hasattr(platform_data, '__dict__'):
+        if hasattr(platform_data, "__dict__"):
             platform_data = {
-                'supports_archives': getattr(platform_data, 'supports_archives', True),
-                'supports_multi_part': getattr(platform_data, 'supports_multi_part', True),
-                'supports_normal': getattr(platform_data, 'supports_normal', True),
+                "supports_archives": getattr(platform_data, "supports_archives", True),
+                "supports_multi_part": getattr(platform_data, "supports_multi_part", True),
+                "supports_normal": getattr(platform_data, "supports_normal", True),
             }
 
         # Load values into widgets
@@ -403,9 +407,9 @@ class PlatformSpecificPage(SettingsPage):
                     widget.setText(str(value))
                 elif isinstance(widget, QComboBox):
                     widget.setCurrentText(str(value))
-                elif hasattr(widget, '_value_widget'):  # File/directory picker
+                elif hasattr(widget, "_value_widget"):  # File/directory picker
                     widget._value_widget.setText(str(value))
-                elif hasattr(widget, '_dirs_list'):  # Directory list (old style)
+                elif hasattr(widget, "_dirs_list"):  # Directory list (old style)
                     # Value should be a list of directories
                     dirs_list = widget._dirs_list
                     dirs_list.clear()
@@ -418,7 +422,7 @@ class PlatformSpecificPage(SettingsPage):
                     if isinstance(value, list):
                         for directory in value:
                             widget.addItem(normalize_path_display(str(directory)))
-                elif hasattr(widget, '_format_checkboxes'):  # Format list
+                elif hasattr(widget, "_format_checkboxes"):  # Format list
                     # Value should be a list of enabled formats
                     enabled_formats = value if isinstance(value, list) else []
                     for format_ext, checkbox in widget._format_checkboxes.items():
@@ -443,9 +447,9 @@ class PlatformSpecificPage(SettingsPage):
                         platform_data[setting_key] = widget.text()
                     elif isinstance(widget, QComboBox):
                         platform_data[setting_key] = widget.currentText()
-                    elif hasattr(widget, '_value_widget'):  # File/directory picker
+                    elif hasattr(widget, "_value_widget"):  # File/directory picker
                         platform_data[setting_key] = widget._value_widget.text()
-                    elif hasattr(widget, '_dirs_list'):  # Directory list (old style)
+                    elif hasattr(widget, "_dirs_list"):  # Directory list (old style)
                         # Collect directories into a list
                         directories = []
                         dirs_list = widget._dirs_list
@@ -458,7 +462,7 @@ class PlatformSpecificPage(SettingsPage):
                         for i in range(widget.count()):
                             directories.append(widget.item(i).text())
                         platform_data[setting_key] = directories
-                    elif hasattr(widget, '_format_checkboxes'):  # Format list
+                    elif hasattr(widget, "_format_checkboxes"):  # Format list
                         # Collect enabled formats into a list
                         enabled_formats = []
                         for format_ext, checkbox in widget._format_checkboxes.items():
@@ -476,13 +480,13 @@ class PlatformSpecificPage(SettingsPage):
             existing_settings = settings.platform_settings[self._platform_id].copy()
 
             # Explicitly preserve rom_directories (managed by PlatformsPage)
-            rom_directories = existing_settings.get('rom_directories', [])
+            rom_directories = existing_settings.get("rom_directories", [])
 
             # Update with new settings from this page
             existing_settings.update(platform_data)
 
             # Ensure rom_directories is preserved
-            existing_settings['rom_directories'] = rom_directories
+            existing_settings["rom_directories"] = rom_directories
 
             settings.platform_settings[self._platform_id] = existing_settings
 
@@ -494,8 +498,7 @@ class PlatformSpecificPage(SettingsPage):
         """Bulk import platform directories by scanning a parent folder."""
         # Select parent directory
         parent_dir = QFileDialog.getExistingDirectory(
-            self,
-            "Select Parent Directory Containing Platform Folders"
+            self, "Select Parent Directory Containing Platform Folders"
         )
         if not parent_dir:
             return
@@ -507,7 +510,7 @@ class PlatformSpecificPage(SettingsPage):
             QMessageBox.information(
                 self,
                 "No Platform Directories Found",
-                f"No subdirectories matching platform names were found in:\n{parent_dir}"
+                f"No subdirectories matching platform names were found in:\n{parent_dir}",
             )
             return
 
@@ -533,18 +536,18 @@ class PlatformSpecificPage(SettingsPage):
             patterns.append(platform.platform_id.lower())
 
             # Map to exact directory names from user's ROM structure
-            if platform.platform_id == 'n64':
-                patterns = ['nintendo 64']
-            elif platform.platform_id == 'gameboy':
-                patterns = ['nintendo game boy']
-            elif platform.platform_id == 'gbc':
-                patterns = ['nintendo game boy color']
-            elif platform.platform_id == 'gba':
-                patterns = ['nintendo game boy advance']
-            elif platform.platform_id == 'snes':
-                patterns = ['nintendo snes']
-            elif platform.platform_id == 'psx':
-                patterns = ['sony playstation']
+            if platform.platform_id == "n64":
+                patterns = ["nintendo 64"]
+            elif platform.platform_id == "gameboy":
+                patterns = ["nintendo game boy"]
+            elif platform.platform_id == "gbc":
+                patterns = ["nintendo game boy color"]
+            elif platform.platform_id == "gba":
+                patterns = ["nintendo game boy advance"]
+            elif platform.platform_id == "snes":
+                patterns = ["nintendo snes"]
+            elif platform.platform_id == "psx":
+                patterns = ["sony playstation"]
 
             platform_patterns[platform.platform_id] = (platform.name, patterns)
 
@@ -585,7 +588,9 @@ class PlatformSpecificPage(SettingsPage):
         layout = QVBoxLayout(dialog)
 
         # Instructions
-        label = QLabel("The following platform directories were detected. Please review and confirm:")
+        label = QLabel(
+            "The following platform directories were detected. Please review and confirm:"
+        )
         label.setWordWrap(True)
         layout.addWidget(label)
 

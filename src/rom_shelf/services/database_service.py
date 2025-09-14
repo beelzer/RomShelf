@@ -1,16 +1,15 @@
 """Database service - abstraction layer for ROM database operations."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..core.rom_database import FingerprintStatus, ROMDatabase, get_rom_database
-from ..models.rom_entry import ROMEntry
 
 
 class DatabaseService:
     """Service for ROM database operations and integrity management."""
 
-    def __init__(self, database: Optional[ROMDatabase] = None) -> None:
+    def __init__(self, database: ROMDatabase | None = None) -> None:
         """Initialize the database service."""
         self._database = database or get_rom_database()
 
@@ -20,7 +19,9 @@ class DatabaseService:
         return self._database
 
     # Fingerprint Operations
-    def get_fingerprint(self, file_path: str, internal_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_fingerprint(
+        self, file_path: str, internal_path: str | None = None
+    ) -> dict[str, Any] | None:
         """Get fingerprint data for a file."""
         try:
             return self._database.get_fingerprint_data(file_path, internal_path)
@@ -28,30 +29,28 @@ class DatabaseService:
             print(f"Error getting fingerprint for {file_path}: {e}")
             return None
 
-    def create_fingerprint(self, file_path: str, internal_path: Optional[str] = None) -> Optional[str]:
+    def create_fingerprint(self, file_path: str, internal_path: str | None = None) -> str | None:
         """Create a new fingerprint for a file."""
         try:
             fingerprint_data = self._database.get_or_create_fingerprint(file_path, internal_path)
-            if fingerprint_data['status'] == FingerprintStatus.SUCCESS:
-                return fingerprint_data['fingerprint']
+            if fingerprint_data["status"] == FingerprintStatus.SUCCESS:
+                return fingerprint_data["fingerprint"]
             return None
         except Exception as e:
             print(f"Error creating fingerprint for {file_path}: {e}")
             return None
 
-    def get_or_create_fingerprint(self, file_path: str, internal_path: Optional[str] = None) -> Dict[str, Any]:
+    def get_or_create_fingerprint(
+        self, file_path: str, internal_path: str | None = None
+    ) -> dict[str, Any]:
         """Get existing fingerprint or create new one."""
         try:
             return self._database.get_or_create_fingerprint(file_path, internal_path)
         except Exception as e:
             print(f"Error with fingerprint for {file_path}: {e}")
-            return {
-                'fingerprint': None,
-                'status': FingerprintStatus.ERROR,
-                'error': str(e)
-            }
+            return {"fingerprint": None, "status": FingerprintStatus.ERROR, "error": str(e)}
 
-    def remove_fingerprint(self, file_path: str, internal_path: Optional[str] = None) -> bool:
+    def remove_fingerprint(self, file_path: str, internal_path: str | None = None) -> bool:
         """Remove a fingerprint from the database."""
         try:
             key = self._database._get_file_key(file_path, internal_path)
@@ -71,7 +70,7 @@ class DatabaseService:
             keys_to_remove = []
 
             for key, fingerprint_data in self._database.fingerprints.items():
-                file_path = fingerprint_data.get('file_path')
+                file_path = fingerprint_data.get("file_path")
                 if file_path:
                     path = Path(file_path)
                     if not path.exists():
@@ -90,7 +89,7 @@ class DatabaseService:
 
         return removed_count
 
-    def refresh_fingerprint(self, file_path: str, internal_path: Optional[str] = None) -> bool:
+    def refresh_fingerprint(self, file_path: str, internal_path: str | None = None) -> bool:
         """Force refresh of a fingerprint."""
         try:
             # Remove existing fingerprint
@@ -114,14 +113,14 @@ class DatabaseService:
             print(f"Error saving database: {e}")
             return False
 
-    def get_database_info(self) -> Dict[str, Any]:
+    def get_database_info(self) -> dict[str, Any]:
         """Get information about the database."""
         try:
             stats = {
-                'total_fingerprints': len(self._database.fingerprints),
-                'database_version': getattr(self._database, 'version', 'unknown'),
-                'database_file': str(self._database.db_file),
-                'database_exists': self._database.db_file.exists(),
+                "total_fingerprints": len(self._database.fingerprints),
+                "database_version": getattr(self._database, "version", "unknown"),
+                "database_file": str(self._database.db_file),
+                "database_exists": self._database.db_file.exists(),
             }
 
             # File type statistics
@@ -130,7 +129,7 @@ class DatabaseService:
             error_fingerprints = 0
 
             for fingerprint_data in self._database.fingerprints.values():
-                file_path = fingerprint_data.get('file_path')
+                file_path = fingerprint_data.get("file_path")
 
                 if file_path:
                     path = Path(file_path)
@@ -140,71 +139,75 @@ class DatabaseService:
                     else:
                         missing_files += 1
 
-                if fingerprint_data.get('status') == FingerprintStatus.ERROR:
+                if fingerprint_data.get("status") == FingerprintStatus.ERROR:
                     error_fingerprints += 1
 
-            stats.update({
-                'file_types': dict(sorted(file_types.items(), key=lambda x: x[1], reverse=True)),
-                'missing_files': missing_files,
-                'error_fingerprints': error_fingerprints,
-            })
+            stats.update(
+                {
+                    "file_types": dict(
+                        sorted(file_types.items(), key=lambda x: x[1], reverse=True)
+                    ),
+                    "missing_files": missing_files,
+                    "error_fingerprints": error_fingerprints,
+                }
+            )
 
             return stats
 
         except Exception as e:
-            return {'error': f"Error getting database info: {e}"}
+            return {"error": f"Error getting database info: {e}"}
 
-    def verify_database_integrity(self) -> Dict[str, Any]:
+    def verify_database_integrity(self) -> dict[str, Any]:
         """Verify database integrity and return report."""
         report = {
-            'total_entries': 0,
-            'valid_entries': 0,
-            'missing_files': 0,
-            'error_entries': 0,
-            'corrupted_entries': 0,
-            'issues': []
+            "total_entries": 0,
+            "valid_entries": 0,
+            "missing_files": 0,
+            "error_entries": 0,
+            "corrupted_entries": 0,
+            "issues": [],
         }
 
         try:
-            report['total_entries'] = len(self._database.fingerprints)
+            report["total_entries"] = len(self._database.fingerprints)
 
             for key, fingerprint_data in self._database.fingerprints.items():
-                file_path = fingerprint_data.get('file_path')
+                file_path = fingerprint_data.get("file_path")
 
                 # Check for corrupted entries
                 if not isinstance(fingerprint_data, dict):
-                    report['corrupted_entries'] += 1
-                    report['issues'].append(f"Corrupted entry: {key}")
+                    report["corrupted_entries"] += 1
+                    report["issues"].append(f"Corrupted entry: {key}")
                     continue
 
                 # Check for error status
-                if fingerprint_data.get('status') == FingerprintStatus.ERROR:
-                    report['error_entries'] += 1
-                    report['issues'].append(f"Error entry: {file_path}")
+                if fingerprint_data.get("status") == FingerprintStatus.ERROR:
+                    report["error_entries"] += 1
+                    report["issues"].append(f"Error entry: {file_path}")
                     continue
 
                 # Check if file exists
                 if file_path:
                     path = Path(file_path)
                     if not path.exists():
-                        report['missing_files'] += 1
-                        report['issues'].append(f"Missing file: {file_path}")
+                        report["missing_files"] += 1
+                        report["issues"].append(f"Missing file: {file_path}")
                         continue
 
-                report['valid_entries'] += 1
+                report["valid_entries"] += 1
 
         except Exception as e:
-            report['issues'].append(f"Error during integrity check: {e}")
+            report["issues"].append(f"Error during integrity check: {e}")
 
         return report
 
-    def compact_database(self) -> Dict[str, Any]:
+    def compact_database(self) -> dict[str, Any]:
         """Compact the database by removing invalid entries."""
         result = {
-            'entries_before': len(self._database.fingerprints),
-            'entries_removed': 0,
-            'entries_after': 0,
-            'success': False
+            "entries_before": len(self._database.fingerprints),
+            "entries_removed": 0,
+            "entries_after": 0,
+            "success": False,
         }
 
         try:
@@ -214,16 +217,14 @@ class DatabaseService:
                 should_remove = False
 
                 # Remove entries with missing files
-                file_path = fingerprint_data.get('file_path')
-                if file_path and not Path(file_path).exists():
-                    should_remove = True
-
-                # Remove error entries
-                elif fingerprint_data.get('status') == FingerprintStatus.ERROR:
-                    should_remove = True
-
-                # Remove corrupted entries
-                elif not isinstance(fingerprint_data, dict) or 'fingerprint' not in fingerprint_data:
+                file_path = fingerprint_data.get("file_path")
+                if (
+                    file_path
+                    and not Path(file_path).exists()
+                    or fingerprint_data.get("status") == FingerprintStatus.ERROR
+                    or not isinstance(fingerprint_data, dict)
+                    or "fingerprint" not in fingerprint_data
+                ):
                     should_remove = True
 
                 if should_remove:
@@ -233,17 +234,17 @@ class DatabaseService:
             for key in keys_to_remove:
                 del self._database.fingerprints[key]
 
-            result['entries_removed'] = len(keys_to_remove)
-            result['entries_after'] = len(self._database.fingerprints)
+            result["entries_removed"] = len(keys_to_remove)
+            result["entries_after"] = len(self._database.fingerprints)
 
             # Save compacted database
             if keys_to_remove:
                 self.save_database()
 
-            result['success'] = True
+            result["success"] = True
 
         except Exception as e:
-            result['error'] = str(e)
+            result["error"] = str(e)
 
         return result
 
@@ -285,7 +286,7 @@ class DatabaseService:
             return False
 
     # Query Operations
-    def find_fingerprints_by_pattern(self, pattern: str) -> List[Dict[str, Any]]:
+    def find_fingerprints_by_pattern(self, pattern: str) -> list[dict[str, Any]]:
         """Find fingerprints matching a file path pattern."""
         results = []
 
@@ -293,10 +294,10 @@ class DatabaseService:
             pattern = pattern.lower()
 
             for key, fingerprint_data in self._database.fingerprints.items():
-                file_path = fingerprint_data.get('file_path', '')
+                file_path = fingerprint_data.get("file_path", "")
                 if pattern in file_path.lower():
                     result = fingerprint_data.copy()
-                    result['key'] = key
+                    result["key"] = key
                     results.append(result)
 
         except Exception as e:
@@ -304,17 +305,17 @@ class DatabaseService:
 
         return results
 
-    def get_fingerprints_by_extension(self, extension: str) -> List[Dict[str, Any]]:
+    def get_fingerprints_by_extension(self, extension: str) -> list[dict[str, Any]]:
         """Get all fingerprints for files with a specific extension."""
         results = []
         extension = extension.lower()
 
         try:
             for key, fingerprint_data in self._database.fingerprints.items():
-                file_path = fingerprint_data.get('file_path', '')
+                file_path = fingerprint_data.get("file_path", "")
                 if file_path.lower().endswith(extension):
                     result = fingerprint_data.copy()
-                    result['key'] = key
+                    result["key"] = key
                     results.append(result)
 
         except Exception as e:
@@ -322,23 +323,25 @@ class DatabaseService:
 
         return results
 
-    def get_duplicate_fingerprints(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_duplicate_fingerprints(self) -> dict[str, list[dict[str, Any]]]:
         """Find fingerprints that have the same hash (potential duplicates)."""
         fingerprint_groups = {}
 
         try:
             for key, fingerprint_data in self._database.fingerprints.items():
-                fingerprint = fingerprint_data.get('fingerprint')
+                fingerprint = fingerprint_data.get("fingerprint")
                 if fingerprint:
                     if fingerprint not in fingerprint_groups:
                         fingerprint_groups[fingerprint] = []
 
                     result = fingerprint_data.copy()
-                    result['key'] = key
+                    result["key"] = key
                     fingerprint_groups[fingerprint].append(result)
 
             # Only return groups with multiple entries
-            duplicates = {fp: entries for fp, entries in fingerprint_groups.items() if len(entries) > 1}
+            duplicates = {
+                fp: entries for fp, entries in fingerprint_groups.items() if len(entries) > 1
+            }
 
         except Exception as e:
             print(f"Error finding duplicate fingerprints: {e}")

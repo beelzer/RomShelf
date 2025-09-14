@@ -1,8 +1,5 @@
 """Service container for dependency injection and service management."""
 
-from pathlib import Path
-from typing import Optional
-
 from ..core.settings import SettingsManager
 from .database_service import DatabaseService
 from .platform_service import PlatformService
@@ -19,11 +16,11 @@ class ServiceContainer:
         self._settings_manager = settings_manager
 
         # Initialize services (lazy loading)
-        self._settings_service: Optional[SettingsService] = None
-        self._platform_service: Optional[PlatformService] = None
-        self._database_service: Optional[DatabaseService] = None
-        self._rom_scanning_service: Optional[ROMScanningService] = None
-        self._search_service: Optional[SearchService] = None
+        self._settings_service: SettingsService | None = None
+        self._platform_service: PlatformService | None = None
+        self._database_service: DatabaseService | None = None
+        self._rom_scanning_service: ROMScanningService | None = None
+        self._search_service: SearchService | None = None
 
     @property
     def settings_service(self) -> SettingsService:
@@ -63,11 +60,11 @@ class ServiceContainer:
     def get_all_services(self) -> dict:
         """Get all services for debugging/inspection."""
         return {
-            'settings_service': self.settings_service,
-            'platform_service': self.platform_service,
-            'database_service': self.database_service,
-            'rom_scanning_service': self.rom_scanning_service,
-            'search_service': self.search_service,
+            "settings_service": self.settings_service,
+            "platform_service": self.platform_service,
+            "database_service": self.database_service,
+            "rom_scanning_service": self.rom_scanning_service,
+            "search_service": self.search_service,
         }
 
     def cleanup(self) -> None:

@@ -1,7 +1,7 @@
 """Search functionality for ROM filtering."""
 
-from PySide6.QtCore import QObject, QTimer, Signal, Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QToolBar, QWidget
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtWidgets import QLabel, QLineEdit, QToolBar, QWidget
 
 from ...models.rom_table_model import ROMTableModel
 
@@ -31,7 +31,9 @@ class SearchHandler(QObject):
         search_toolbar.addWidget(search_label)
 
         self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText("Filter ROMs by name, platform, region, language, or version...")
+        self._search_edit.setPlaceholderText(
+            "Filter ROMs by name, platform, region, language, or version..."
+        )
         self._search_edit.setMinimumWidth(300)
         self._search_edit.setMaximumWidth(500)
         self._search_edit.textChanged.connect(self._on_search_text_changed)

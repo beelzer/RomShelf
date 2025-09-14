@@ -1,6 +1,6 @@
 """Interface settings page."""
 
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -119,7 +119,9 @@ class InterfacePage(SettingsPage):
         self._dark_radio.toggled.connect(lambda: self.settings_changed.emit())
         self._font_slider.valueChanged.connect(lambda v: self._font_value_label.setText(f"{v}pt"))
         self._font_slider.valueChanged.connect(lambda: self.settings_changed.emit())
-        self._row_height_slider.valueChanged.connect(lambda v: self._row_height_value_label.setText(f"{v}px"))
+        self._row_height_slider.valueChanged.connect(
+            lambda v: self._row_height_value_label.setText(f"{v}px")
+        )
         self._row_height_slider.valueChanged.connect(lambda: self.settings_changed.emit())
         self._region_combo.currentTextChanged.connect(lambda: self.settings_changed.emit())
         self._duplicate_combo.currentIndexChanged.connect(lambda: self.settings_changed.emit())
@@ -149,15 +151,15 @@ class InterfacePage(SettingsPage):
         """Save settings from the interface page."""
         # Check if widgets still exist before accessing them
         try:
-            if hasattr(self, '_light_radio') and self._light_radio is not None:
+            if hasattr(self, "_light_radio") and self._light_radio is not None:
                 settings.theme = "light" if self._light_radio.isChecked() else "dark"
-            if hasattr(self, '_font_slider') and self._font_slider is not None:
+            if hasattr(self, "_font_slider") and self._font_slider is not None:
                 settings.font_size = self._font_slider.value()
-            if hasattr(self, '_row_height_slider') and self._row_height_slider is not None:
+            if hasattr(self, "_row_height_slider") and self._row_height_slider is not None:
                 settings.table_row_height = self._row_height_slider.value()
-            if hasattr(self, '_region_combo') and self._region_combo is not None:
+            if hasattr(self, "_region_combo") and self._region_combo is not None:
                 settings.preferred_region = self._region_combo.currentText()
-            if hasattr(self, '_duplicate_combo') and self._duplicate_combo is not None:
+            if hasattr(self, "_duplicate_combo") and self._duplicate_combo is not None:
                 current_data = self._duplicate_combo.currentData()
                 if current_data:
                     settings.duplicate_handling = current_data

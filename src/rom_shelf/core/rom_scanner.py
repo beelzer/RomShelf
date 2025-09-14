@@ -45,8 +45,9 @@ class ROMScanner(QObject):
         self._is_scanning = False
         self._should_stop = False
         self._progress_lock = threading.Lock()
-        self._max_workers = min(32, (os.cpu_count() or 1) + 4)  # Use more threads for I/O-bound work
-
+        self._max_workers = min(
+            32, (os.cpu_count() or 1) + 4
+        )  # Use more threads for I/O-bound work
 
     def scan_platforms(self, platform_configs: list[dict]) -> None:
         """Start scanning with platform-specific directory configurations."""
@@ -65,9 +66,9 @@ class ROMScanner(QObject):
             platform_file_map = {}  # Maps file paths to their platforms
 
             for config in platform_configs:
-                platform = config['platform']
-                directories = config.get('directories', [])
-                scan_subdirectories = config.get('scan_subdirectories', True)
+                platform = config["platform"]
+                directories = config.get("directories", [])
+                scan_subdirectories = config.get("scan_subdirectories", True)
 
                 platform_files = []
                 for directory in directories:
@@ -94,7 +95,9 @@ class ROMScanner(QObject):
             progress.total_files = len(unique_files)
 
             # Process files using multi-threading for better performance
-            all_entries = self._process_files_multithreaded(unique_files, platform_file_map, progress)
+            all_entries = self._process_files_multithreaded(
+                unique_files, platform_file_map, progress
+            )
 
             self.scan_completed.emit(all_entries)
 
@@ -116,7 +119,9 @@ class ROMScanner(QObject):
         """Stop the current scan."""
         self._should_stop = True
 
-    def _process_files_multithreaded(self, unique_files: list[Path], platform_file_map: dict, progress: ScanProgress) -> list[ROMEntry]:
+    def _process_files_multithreaded(
+        self, unique_files: list[Path], platform_file_map: dict, progress: ScanProgress
+    ) -> list[ROMEntry]:
         """Process files using multiple threads for improved performance.
 
         Args:
@@ -157,8 +162,8 @@ class ROMScanner(QObject):
                 if self._should_stop:
                     break
 
-                platform = config['platform']
-                handle_archives = config.get('handle_archives', True)
+                platform = config["platform"]
+                handle_archives = config.get("handle_archives", True)
 
                 # Create thread-local processed files set for this file's processing
                 local_processed = set()
@@ -216,7 +221,9 @@ class ROMScanner(QObject):
 
             scan_time = time.time() - scan_start_time
             files_per_second = len(unique_files) / scan_time if scan_time > 0 else 0
-            print(f"Multi-threaded scan completed in {scan_time:.2f}s ({files_per_second:.1f} files/second)")
+            print(
+                f"Multi-threaded scan completed in {scan_time:.2f}s ({files_per_second:.1f} files/second)"
+            )
 
         except Exception as e:
             print(f"Error in multithreaded processing: {e}")
@@ -224,7 +231,9 @@ class ROMScanner(QObject):
 
         return all_entries
 
-    def _check_or_create_fingerprint(self, file_path: Path, platform_id: str, internal_path: str = None) -> bool:
+    def _check_or_create_fingerprint(
+        self, file_path: Path, platform_id: str, internal_path: str = None
+    ) -> bool:
         """Check if ROM fingerprint exists and is valid, create if needed.
 
         Args:
@@ -251,9 +260,7 @@ class ROMScanner(QObject):
 
             # Create new fingerprint for new or changed files
             new_fingerprint = self._rom_database.create_rom_fingerprint(
-                file_path,
-                internal_path=internal_path,
-                platform=platform_id
+                file_path, internal_path=internal_path, platform=platform_id
             )
 
             # Store fingerprint in database
@@ -327,7 +334,7 @@ class ROMScanner(QObject):
             supported_formats = platform.supported_handlers
             if config:
                 # Use user's format settings if available
-                supported_formats = config.get('supported_formats', platform.supported_handlers)
+                supported_formats = config.get("supported_formats", platform.supported_handlers)
 
             if extension in supported_formats:
                 if platform.validate_rom(file_path):
@@ -359,7 +366,9 @@ class ROMScanner(QObject):
                 # Check user's format settings for archive contents
                 supported_formats = platform.archive_content_extensions
                 if config:
-                    supported_formats = config.get('supported_formats', platform.archive_content_extensions)
+                    supported_formats = config.get(
+                        "supported_formats", platform.archive_content_extensions
+                    )
 
                 if content_ext in supported_formats:
                     potential_platforms.add(platform)
@@ -372,7 +381,9 @@ class ROMScanner(QObject):
         for platform in potential_platforms:
             supported_formats = platform.archive_content_extensions
             if config:
-                supported_formats = config.get('supported_formats', platform.archive_content_extensions)
+                supported_formats = config.get(
+                    "supported_formats", platform.archive_content_extensions
+                )
             extract_extensions.update(supported_formats)
 
         extracted_files = self._archive_processor.extract_files(file_path, list(extract_extensions))
@@ -385,7 +396,9 @@ class ROMScanner(QObject):
                 # Check user's format settings for this extracted file
                 supported_formats = platform.archive_content_extensions
                 if config:
-                    supported_formats = config.get('supported_formats', platform.archive_content_extensions)
+                    supported_formats = config.get(
+                        "supported_formats", platform.archive_content_extensions
+                    )
 
                 if content_ext in supported_formats and platform.validate_rom(
                     extracted_file.extracted_path
@@ -410,13 +423,19 @@ class ROMScanner(QObject):
                     elif internal_extension == ".smc":
                         entry.metadata["file_type"] = "SMC"
                     elif internal_extension:
-                        entry.metadata["file_type"] = internal_extension.upper()[1:]  # Remove the dot and uppercase
+                        entry.metadata["file_type"] = internal_extension.upper()[
+                            1:
+                        ]  # Remove the dot and uppercase
                     entries.append(entry)
 
         return entries
 
     def _process_multi_file(
-        self, file_path: Path, platforms: list[BasePlatform], processed_files: set[Path], config: dict = None
+        self,
+        file_path: Path,
+        platforms: list[BasePlatform],
+        processed_files: set[Path],
+        config: dict = None,
     ) -> list[ROMEntry]:
         """Process a multi-file ROM."""
         entries: list[ROMEntry] = []
@@ -439,7 +458,7 @@ class ROMScanner(QObject):
             # Check user's format settings
             supported_formats = platform.supported_handlers
             if config:
-                supported_formats = config.get('supported_formats', platform.supported_handlers)
+                supported_formats = config.get("supported_formats", platform.supported_handlers)
 
             if extension in supported_formats:
                 if platform.validate_rom(primary_file):

@@ -1,6 +1,5 @@
 """Platform registry for managing all supported platforms."""
 
-
 from .base_platform import BasePlatform
 from .game_boy import GameBoyPlatform
 from .game_boy_advance import GameBoyAdvancePlatform

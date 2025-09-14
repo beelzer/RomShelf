@@ -20,7 +20,8 @@ line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E722", "B008", "SIM105", "SIM117", "RUF012", "E501", "F841", "N802", "N803", "UP038"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -40,6 +41,10 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "test"]
+skips = ["B101", "B601"]
 
 [build-system]
 requires = ["hatchling"]

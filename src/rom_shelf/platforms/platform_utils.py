@@ -17,63 +17,77 @@ class PlatformUtils:
         filename_lower = filename.lower()
 
         # Extract parenthetical content for region analysis
-        parenthetical_matches = re.findall(r'\([^)]+\)', filename_lower)
+        parenthetical_matches = re.findall(r"\([^)]+\)", filename_lower)
 
         # Look for region indicators in all parenthetical content
         regions_found = []
 
         for match in parenthetical_matches:
-            content = match.strip('()')
+            content = match.strip("()")
 
             # Skip revision numbers, version numbers, beta, prototype, etc.
-            if any(skip_word in content for skip_word in ['rev', 'sgb', 'enhanced', 'beta', 'proto', 'sample', 'v1.', 'v2.', 'v3.', 'version']):
+            if any(
+                skip_word in content
+                for skip_word in [
+                    "rev",
+                    "sgb",
+                    "enhanced",
+                    "beta",
+                    "proto",
+                    "sample",
+                    "v1.",
+                    "v2.",
+                    "v3.",
+                    "version",
+                ]
+            ):
                 continue
 
             # Multi-region patterns (check first for specificity)
-            if 'usa' in content and 'europe' in content:
-                if 'japan' in content:
+            if "usa" in content and "europe" in content:
+                if "japan" in content:
                     regions_found.append("USA/EUR/JPN")
                 else:
                     regions_found.append("USA/EUR")
-            elif 'japan' in content and 'usa' in content:
+            elif "japan" in content and "usa" in content:
                 regions_found.append("JPN/USA")
-            elif 'usa' in content and 'australia' in content:
+            elif "usa" in content and "australia" in content:
                 regions_found.append("USA/AUS")
-            elif 'europe' in content and 'australia' in content:
+            elif "europe" in content and "australia" in content:
                 regions_found.append("EUR/AUS")
 
             # Single region patterns
-            elif 'usa' in content or content == 'u':
+            elif "usa" in content or content == "u":
                 regions_found.append("USA")
-            elif 'europe' in content or content == 'e':
+            elif "europe" in content or content == "e":
                 regions_found.append("EUR")
-            elif 'japan' in content or content == 'j':
+            elif "japan" in content or content == "j":
                 regions_found.append("JPN")
-            elif 'world' in content or content == 'w':
+            elif "world" in content or content == "w":
                 regions_found.append("World")
-            elif 'australia' in content:
+            elif "australia" in content:
                 regions_found.append("AUS")
-            elif 'germany' in content or content == 'g':
+            elif "germany" in content or content == "g":
                 regions_found.append("GER")
-            elif 'france' in content or content == 'f':
+            elif "france" in content or content == "f":
                 regions_found.append("FRA")
-            elif 'italy' in content:
+            elif "italy" in content:
                 regions_found.append("ITA")
-            elif 'spain' in content:
+            elif "spain" in content:
                 regions_found.append("SPA")
-            elif 'korea' in content:
+            elif "korea" in content:
                 regions_found.append("KOR")
-            elif 'brazil' in content:
+            elif "brazil" in content:
                 regions_found.append("BRA")
-            elif 'asia' in content:
+            elif "asia" in content:
                 regions_found.append("Asia")
-            elif 'prototype' in content:
+            elif "prototype" in content:
                 regions_found.append("Prototype")
 
         # Return the most specific region found, or derive from language codes
         if regions_found:
             # Prefer multi-region over single region for better accuracy
-            multi_regions = [r for r in regions_found if '/' in r]
+            multi_regions = [r for r in regions_found if "/" in r]
             if multi_regions:
                 return multi_regions[0]  # Return first multi-region match
             else:
@@ -81,10 +95,10 @@ class PlatformUtils:
 
         # Fallback: check for language-only indicators
         for match in parenthetical_matches:
-            content = match.strip('()')
-            if content.startswith('en') and 'ja' not in content:
+            content = match.strip("()")
+            if content.startswith("en") and "ja" not in content:
                 return "USA"  # English often implies USA release
-            elif 'ja' in content:
+            elif "ja" in content:
                 return "JPN"
 
         return "Unknown"
@@ -98,9 +112,9 @@ class PlatformUtils:
 
         # Look for version patterns
         version_patterns = [
-            r'\(v(\d+\.\d+)\)',    # (V1.2)
-            r'\(v(\d+)\)',         # (V1)
-            r'\(version\s+(\d+\.\d+)\)',  # (Version 1.1)
+            r"\(v(\d+\.\d+)\)",  # (V1.2)
+            r"\(v(\d+)\)",  # (V1)
+            r"\(version\s+(\d+\.\d+)\)",  # (Version 1.1)
         ]
 
         for pattern in version_patterns:
@@ -115,23 +129,23 @@ class PlatformUtils:
         """Extract dump status from ROM filename."""
 
         # Look for dump status indicators
-        if '[!]' in filename:
+        if "[!]" in filename:
             return "Verified"
-        elif '[a]' in filename:
+        elif "[a]" in filename:
             return "Alternative"
-        elif '[b]' in filename:
+        elif "[b]" in filename:
             return "Bad Dump"
-        elif '[h]' in filename:
+        elif "[h]" in filename:
             return "Hack"
-        elif '[o]' in filename:
+        elif "[o]" in filename:
             return "Overdump"
-        elif '[t]' in filename:
+        elif "[t]" in filename:
             return "Trained"
-        elif '[f]' in filename:
+        elif "[f]" in filename:
             return "Fixed"
-        elif 'beta' in filename.lower():
+        elif "beta" in filename.lower():
             return "Beta"
-        elif 'proto' in filename.lower():
+        elif "proto" in filename.lower():
             return "Prototype"
 
         return ""
@@ -156,7 +170,7 @@ class PlatformUtils:
         metadata = {
             "name": file_path.stem,
             "region": PlatformUtils.parse_region_from_filename(file_path.stem),
-            **extra_fields
+            **extra_fields,
         }
         return metadata
 
@@ -199,12 +213,12 @@ class PlatformUtils:
         ]
 
     @staticmethod
-    def get_standard_file_type_support(supports_multi_part: bool = False) -> PlatformFileTypeSupport:
+    def get_standard_file_type_support(
+        supports_multi_part: bool = False,
+    ) -> PlatformFileTypeSupport:
         """Get standard file type support configuration."""
         return PlatformFileTypeSupport(
-            supports_archives=True,
-            supports_multi_part=supports_multi_part,
-            supports_normal=True
+            supports_archives=True, supports_multi_part=supports_multi_part, supports_normal=True
         )
 
     @staticmethod
@@ -221,7 +235,7 @@ class PlatformUtils:
             description=f"Directories to scan for {platform_name} ROMs",
             setting_type=SettingType.DIRECTORY_LIST,
             default_value=[],
-            required=False
+            required=False,
         )
 
     @staticmethod
@@ -232,7 +246,7 @@ class PlatformUtils:
             label="Scan Subdirectories",
             description="Include subdirectories when scanning for ROMs",
             setting_type=SettingType.BOOLEAN,
-            default_value=True
+            default_value=True,
         )
 
     @staticmethod
@@ -244,7 +258,7 @@ class PlatformUtils:
             description=f"Enable or disable support for specific {platform_name} ROM formats",
             setting_type=SettingType.FORMAT_LIST,
             default_value=formats,
-            choices=formats
+            choices=formats,
         )
 
     @staticmethod
@@ -256,7 +270,7 @@ class PlatformUtils:
             description="Enable or disable support for specific archive formats",
             setting_type=SettingType.FORMAT_LIST,
             default_value=PlatformUtils.get_standard_archive_formats(),
-            choices=PlatformUtils.get_standard_archive_formats()
+            choices=PlatformUtils.get_standard_archive_formats(),
         )
 
     @staticmethod
@@ -267,11 +281,13 @@ class PlatformUtils:
             label="Validate ROM Headers",
             description="Perform header validation to ensure ROM integrity",
             setting_type=SettingType.BOOLEAN,
-            default_value=True
+            default_value=True,
         )
 
     @staticmethod
-    def create_max_file_size_setting(default_mb: int, min_mb: int = 1, max_mb: int = 128) -> PlatformSetting:
+    def create_max_file_size_setting(
+        default_mb: int, min_mb: int = 1, max_mb: int = 128
+    ) -> PlatformSetting:
         """Create standard maximum file size setting."""
         return PlatformSetting(
             key="max_file_size_mb",
@@ -280,5 +296,5 @@ class PlatformUtils:
             setting_type=SettingType.INTEGER,
             default_value=default_mb,
             min_value=min_mb,
-            max_value=max_mb
+            max_value=max_mb,
         )

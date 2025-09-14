@@ -3,12 +3,12 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
-    QMainWindow,
+    QApplication,
     QHBoxLayout,
+    QMainWindow,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
-    QApplication,
-    QSizePolicy,
 )
 
 from ...core.rom_scanner import ROMScannerThread
@@ -89,15 +89,11 @@ class MainWindow(QMainWindow):
         self._search_handler = SearchHandler(self)
 
         # Create UI components using managers
-        self._toolbar_manager.create_main_toolbar(
-            self._start_rom_scan, self._open_settings
-        )
+        self._toolbar_manager.create_main_toolbar(self._start_rom_scan, self._open_settings)
         search_toolbar = self._search_handler.create_search_toolbar(self)
         self.addToolBar(search_toolbar)
 
-        self._toolbar_manager.create_menu_bar(
-            self._start_rom_scan, self._open_settings
-        )
+        self._toolbar_manager.create_menu_bar(self._start_rom_scan, self._open_settings)
         self._toolbar_manager.create_status_bar()
 
         # Hide menu bar by default - show on Alt press
@@ -274,23 +270,31 @@ class MainWindow(QMainWindow):
             platform_settings = settings.platform_settings.get(platform.platform_id, {})
 
             # Get platform directories
-            platform_directories = platform_settings.get('rom_directories', [])
+            platform_directories = platform_settings.get("rom_directories", [])
 
             if platform_directories:  # Only add platforms that have directories configured
-                platform_configs.append({
-                    'platform': platform,
-                    'directories': platform_directories,
-                    'scan_subdirectories': platform_settings.get('scan_subdirectories', True),
-                    'handle_archives': platform_settings.get('handle_archives', True),
-                    'supported_formats': platform_settings.get('supported_formats', platform.get_supported_handlers()),
-                    'supported_archives': platform_settings.get('supported_archives', platform.get_archive_content_extensions())
-                })
+                platform_configs.append(
+                    {
+                        "platform": platform,
+                        "directories": platform_directories,
+                        "scan_subdirectories": platform_settings.get("scan_subdirectories", True),
+                        "handle_archives": platform_settings.get("handle_archives", True),
+                        "supported_formats": platform_settings.get(
+                            "supported_formats", platform.get_supported_handlers()
+                        ),
+                        "supported_archives": platform_settings.get(
+                            "supported_archives", platform.get_archive_content_extensions()
+                        ),
+                    }
+                )
                 total_directories += len(platform_directories)
 
         # Don't scan if no directories are configured for any platform
         if not platform_configs:
             if self._toolbar_manager:
-                self._toolbar_manager.update_status("No ROM directories configured for any platform. Check Settings.")
+                self._toolbar_manager.update_status(
+                    "No ROM directories configured for any platform. Check Settings."
+                )
             return
 
         # Stop any existing scan
@@ -304,7 +308,9 @@ class MainWindow(QMainWindow):
         # Update status
         platform_count = len(platform_configs)
         if self._toolbar_manager:
-            self._toolbar_manager.update_status(f"Scanning {total_directories} directories across {platform_count} platforms...")
+            self._toolbar_manager.update_status(
+                f"Scanning {total_directories} directories across {platform_count} platforms..."
+            )
 
         # Start new scan with platform-specific configurations
         self._scanner_thread = ROMScannerThread(platform_configs)
@@ -316,7 +322,9 @@ class MainWindow(QMainWindow):
 
         # Start scanning
         self._scanner_thread.start()
-        print(f"Started scanning {total_directories} directories across {platform_count} platforms...")
+        print(
+            f"Started scanning {total_directories} directories across {platform_count} platforms..."
+        )
 
     def _on_rom_found(self, rom_entry) -> None:
         """Handle a ROM being found during scan."""

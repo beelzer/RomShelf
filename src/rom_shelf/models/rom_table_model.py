@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QSize
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt
 
 from ..core.rom_database import get_rom_database
 from ..platforms.base_platform import TableColumn
@@ -89,14 +89,14 @@ class ROMTableModel(QAbstractTableModel):
         # Apply platform filter
         if self._platform_filter:
             filtered_entries = [
-                entry for entry in filtered_entries
-                if entry.platform_id in self._platform_filter
+                entry for entry in filtered_entries if entry.platform_id in self._platform_filter
             ]
 
         # Apply search filter
         if self._search_filter:
             filtered_entries = [
-                entry for entry in filtered_entries
+                entry
+                for entry in filtered_entries
                 if self._matches_search(entry, self._search_filter)
             ]
 
@@ -150,7 +150,6 @@ class ROMTableModel(QAbstractTableModel):
             return FlagIcons.get_flag_icon(region_value, QSize(20, 14))
         return None
 
-
     def _get_display_data(self, entry: ROMEntry, key: str) -> str:
         """Get display data for a ROM entry field."""
         if key == "actions":
@@ -167,9 +166,7 @@ class ROMTableModel(QAbstractTableModel):
             # Special handling for region column - return text only (icon handled separately)
             region_value = str(entry.metadata[key])
             return FlagIcons.get_display_text_for_region(region_value, include_flag=False)
-        elif key == "language" and key in entry.metadata:
-            return str(entry.metadata[key])
-        elif key in entry.metadata:
+        elif key == "language" and key in entry.metadata or key in entry.metadata:
             return str(entry.metadata[key])
         else:
             return ""
@@ -223,6 +220,7 @@ class ROMTableModel(QAbstractTableModel):
 
         # Search in platform name
         from ..platforms.platform_registry import platform_registry
+
         platform = platform_registry.get_platform(entry.platform_id)
         if platform and search_text in platform.name.lower():
             return True
@@ -285,8 +283,7 @@ class ROMTableModel(QAbstractTableModel):
             return self._rom_entries.copy()
 
         return [
-            entry for entry in self._rom_entries
-            if self._matches_search(entry, self._search_filter)
+            entry for entry in self._rom_entries if self._matches_search(entry, self._search_filter)
         ]
 
     def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:

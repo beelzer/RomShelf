@@ -55,17 +55,17 @@ class GameBoyAdvancePlatform(BasePlatform):
                 label="Auto-detect Save Type",
                 description="Automatically detect save type (SRAM, Flash, EEPROM) from ROM",
                 setting_type=SettingType.BOOLEAN,
-                default_value=True
+                default_value=True,
             ),
             PlatformSetting(
                 key="multiboot_support",
                 label="Support Multiboot ROMs",
                 description="Enable support for GBA Multiboot (smaller) ROMs",
                 setting_type=SettingType.BOOLEAN,
-                default_value=False
+                default_value=False,
             ),
             PlatformUtils.create_header_validation_setting(),
-            PlatformUtils.create_max_file_size_setting(default_mb=32, max_mb=64)
+            PlatformUtils.create_max_file_size_setting(default_mb=32, max_mb=64),
         ]
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:

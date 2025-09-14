@@ -1,7 +1,8 @@
 """Search service - business logic for ROM filtering and search operations."""
 
 import re
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from typing import Any
 
 from ..models.rom_entry import ROMEntry
 
@@ -12,11 +13,11 @@ class SearchCriteria:
     def __init__(self) -> None:
         """Initialize search criteria."""
         self.text_query: str = ""
-        self.platform_filter: Set[str] = set()
-        self.region_filter: Set[str] = set()
-        self.language_filter: Set[str] = set()
-        self.size_min: Optional[int] = None
-        self.size_max: Optional[int] = None
+        self.platform_filter: set[str] = set()
+        self.region_filter: set[str] = set()
+        self.language_filter: set[str] = set()
+        self.size_min: int | None = None
+        self.size_max: int | None = None
         self.include_archives: bool = True
         self.include_multi_part: bool = True
 
@@ -55,21 +56,38 @@ class SearchService:
 
     def __init__(self) -> None:
         """Initialize the search service."""
-        self._search_history: List[str] = []
+        self._search_history: list[str] = []
         self._max_history_size = 50
         self._common_words = {
-            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-            'of', 'with', 'by', 'rom', 'game', 'version'
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "rom",
+            "game",
+            "version",
         }
 
     # Core Search Functionality
-    def filter_roms(self, roms: List[ROMEntry], criteria: SearchCriteria) -> List[ROMEntry]:
+    def filter_roms(self, roms: list[ROMEntry], criteria: SearchCriteria) -> list[ROMEntry]:
         """Filter ROM entries based on search criteria."""
         if criteria.is_empty():
             return roms.copy()
 
         filtered = []
-        text_matcher = self._create_text_matcher(criteria.text_query) if criteria.text_query else None
+        text_matcher = (
+            self._create_text_matcher(criteria.text_query) if criteria.text_query else None
+        )
 
         for rom in roms:
             if self._matches_criteria(rom, criteria, text_matcher):
@@ -77,7 +95,9 @@ class SearchService:
 
         return filtered
 
-    def _matches_criteria(self, rom: ROMEntry, criteria: SearchCriteria, text_matcher: Optional[Callable]) -> bool:
+    def _matches_criteria(
+        self, rom: ROMEntry, criteria: SearchCriteria, text_matcher: Callable | None
+    ) -> bool:
         """Check if a ROM entry matches the search criteria."""
         # Platform filter
         if criteria.platform_filter and rom.platform_id not in criteria.platform_filter:
@@ -130,7 +150,7 @@ class SearchService:
         patterns = []
         for term in terms:
             # Escape special regex characters except * and ?
-            escaped = re.escape(term).replace(r'\*', '.*').replace(r'\?', '.')
+            escaped = re.escape(term).replace(r"\*", ".*").replace(r"\?", ".")
             patterns.append(re.compile(escaped, re.IGNORECASE))
 
         def matches_text(rom: ROMEntry) -> bool:
@@ -146,16 +166,16 @@ class SearchService:
             rom.display_name,
             rom.clean_name,
             rom.platform_id,
-            rom.region or '',
-            rom.language or '',
-            rom.version or '',
-            rom.revision or '',
+            rom.region or "",
+            rom.language or "",
+            rom.version or "",
+            rom.revision or "",
             str(rom.file_path.stem),  # filename without extension
         ]
 
-        return ' '.join(parts).lower()
+        return " ".join(parts).lower()
 
-    def _parse_search_terms(self, query: str) -> List[str]:
+    def _parse_search_terms(self, query: str) -> list[str]:
         """Parse search query into individual terms."""
         # Split by whitespace and filter out common words
         terms = query.split()
@@ -184,9 +204,9 @@ class SearchService:
 
         # Trim to max size
         if len(self._search_history) > self._max_history_size:
-            self._search_history = self._search_history[:self._max_history_size]
+            self._search_history = self._search_history[: self._max_history_size]
 
-    def get_search_history(self) -> List[str]:
+    def get_search_history(self) -> list[str]:
         """Get search history."""
         return self._search_history.copy()
 
@@ -194,7 +214,9 @@ class SearchService:
         """Clear search history."""
         self._search_history.clear()
 
-    def get_search_suggestions(self, partial_query: str, roms: List[ROMEntry], limit: int = 10) -> List[str]:
+    def get_search_suggestions(
+        self, partial_query: str, roms: list[ROMEntry], limit: int = 10
+    ) -> list[str]:
         """Get search suggestions based on partial query and available ROM data."""
         partial_query = partial_query.lower().strip()
         if not partial_query:
@@ -218,9 +240,11 @@ class SearchService:
                 # Add words from the ROM that match
                 words = rom_text.split()
                 for word in words:
-                    if (len(word) >= len(partial_query) + 1 and
-                        word.startswith(partial_query) and
-                        word not in self._common_words):
+                    if (
+                        len(word) >= len(partial_query) + 1
+                        and word.startswith(partial_query)
+                        and word not in self._common_words
+                    ):
                         suggestions.add(word)
 
         # Convert to sorted list
@@ -241,59 +265,64 @@ class SearchService:
         remaining_query = query
 
         # Extract platform filters
-        platform_matches = re.findall(r'platform:(\w+)', query, re.IGNORECASE)
+        platform_matches = re.findall(r"platform:(\w+)", query, re.IGNORECASE)
         for match in platform_matches:
             criteria.platform_filter.add(match.lower())
-            remaining_query = re.sub(rf'platform:{re.escape(match)}\s*', '', remaining_query, flags=re.IGNORECASE)
+            remaining_query = re.sub(
+                rf"platform:{re.escape(match)}\s*", "", remaining_query, flags=re.IGNORECASE
+            )
 
         # Extract region filters
-        region_matches = re.findall(r'region:(\w+)', query, re.IGNORECASE)
+        region_matches = re.findall(r"region:(\w+)", query, re.IGNORECASE)
         for match in region_matches:
             criteria.region_filter.add(match.upper())
-            remaining_query = re.sub(rf'region:{re.escape(match)}\s*', '', remaining_query, flags=re.IGNORECASE)
+            remaining_query = re.sub(
+                rf"region:{re.escape(match)}\s*", "", remaining_query, flags=re.IGNORECASE
+            )
 
         # Extract language filters
-        language_matches = re.findall(r'language:(\w+)', query, re.IGNORECASE)
+        language_matches = re.findall(r"language:(\w+)", query, re.IGNORECASE)
         for match in language_matches:
             criteria.language_filter.add(match.lower())
-            remaining_query = re.sub(rf'language:{re.escape(match)}\s*', '', remaining_query, flags=re.IGNORECASE)
+            remaining_query = re.sub(
+                rf"language:{re.escape(match)}\s*", "", remaining_query, flags=re.IGNORECASE
+            )
 
         # Extract size filters
-        size_matches = re.findall(r'size:([<>]=?)(\d+(?:\.\d+)?)(mb|kb|gb)?', query, re.IGNORECASE)
+        size_matches = re.findall(r"size:([<>]=?)(\d+(?:\.\d+)?)(mb|kb|gb)?", query, re.IGNORECASE)
         for operator, value, unit in size_matches:
             size_bytes = self._parse_size(value, unit)
             if size_bytes:
-                if operator in ['<', '<=']:
+                if operator in ["<", "<="]:
                     criteria.size_max = size_bytes
-                elif operator in ['>', '>=']:
+                elif operator in [">", ">="]:
                     criteria.size_min = size_bytes
-            remaining_query = re.sub(rf'size:{re.escape(operator)}{re.escape(value)}{re.escape(unit)}\s*',
-                                   '', remaining_query, flags=re.IGNORECASE)
+            remaining_query = re.sub(
+                rf"size:{re.escape(operator)}{re.escape(value)}{re.escape(unit)}\s*",
+                "",
+                remaining_query,
+                flags=re.IGNORECASE,
+            )
 
         # What's left is the text query
         criteria.text_query = remaining_query.strip()
 
         return criteria
 
-    def _parse_size(self, value_str: str, unit: str) -> Optional[int]:
+    def _parse_size(self, value_str: str, unit: str) -> int | None:
         """Parse size value with unit into bytes."""
         try:
             value = float(value_str)
-            unit = unit.lower() if unit else 'mb'
+            unit = unit.lower() if unit else "mb"
 
-            multipliers = {
-                'b': 1,
-                'kb': 1024,
-                'mb': 1024 * 1024,
-                'gb': 1024 * 1024 * 1024
-            }
+            multipliers = {"b": 1, "kb": 1024, "mb": 1024 * 1024, "gb": 1024 * 1024 * 1024}
 
             return int(value * multipliers.get(unit, 1024 * 1024))
         except (ValueError, TypeError):
             return None
 
     # Statistics and Analysis
-    def get_search_statistics(self, roms: List[ROMEntry]) -> Dict[str, Any]:
+    def get_search_statistics(self, roms: list[ROMEntry]) -> dict[str, Any]:
         """Get search statistics for a ROM collection."""
         if not roms:
             return {}
@@ -330,23 +359,23 @@ class SearchService:
         if sizes:
             sizes.sort()
             size_stats = {
-                'min': sizes[0],
-                'max': sizes[-1],
-                'median': sizes[len(sizes) // 2],
-                'total': sum(sizes)
+                "min": sizes[0],
+                "max": sizes[-1],
+                "median": sizes[len(sizes) // 2],
+                "total": sum(sizes),
             }
 
         return {
-            'total_roms': len(roms),
-            'platforms': dict(sorted(platforms.items(), key=lambda x: x[1], reverse=True)),
-            'regions': dict(sorted(regions.items(), key=lambda x: x[1], reverse=True)),
-            'languages': dict(sorted(languages.items(), key=lambda x: x[1], reverse=True)),
-            'extensions': dict(sorted(extensions.items(), key=lambda x: x[1], reverse=True)),
-            'sizes': size_stats,
-            'search_history_size': len(self._search_history)
+            "total_roms": len(roms),
+            "platforms": dict(sorted(platforms.items(), key=lambda x: x[1], reverse=True)),
+            "regions": dict(sorted(regions.items(), key=lambda x: x[1], reverse=True)),
+            "languages": dict(sorted(languages.items(), key=lambda x: x[1], reverse=True)),
+            "extensions": dict(sorted(extensions.items(), key=lambda x: x[1], reverse=True)),
+            "sizes": size_stats,
+            "search_history_size": len(self._search_history),
         }
 
-    def find_duplicates(self, roms: List[ROMEntry]) -> Dict[str, List[ROMEntry]]:
+    def find_duplicates(self, roms: list[ROMEntry]) -> dict[str, list[ROMEntry]]:
         """Find potential duplicate ROMs based on clean names."""
         duplicates = {}
         name_groups = {}

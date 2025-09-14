@@ -54,14 +54,16 @@ class ROMTableView(QTableView):
 
         if selected_platform == "all":
             # Show default columns for all platforms view
-            columns.extend([
-                TableColumn("name", "Name", 300),  # Will stretch, width is minimum
-                TableColumn("platform", "Platform", 120),
-                TableColumn("region", "Region", 100),
-                TableColumn("language", "Language", 100),
-                TableColumn("version", "Version", 90),
-                TableColumn("size", "Size", 100),
-            ])
+            columns.extend(
+                [
+                    TableColumn("name", "Name", 300),  # Will stretch, width is minimum
+                    TableColumn("platform", "Platform", 120),
+                    TableColumn("region", "Region", 100),
+                    TableColumn("language", "Language", 100),
+                    TableColumn("version", "Version", 90),
+                    TableColumn("size", "Size", 100),
+                ]
+            )
         else:
             # Show platform-specific columns
             platform = platform_registry.get_platform(selected_platform)
@@ -69,14 +71,16 @@ class ROMTableView(QTableView):
                 columns.extend(platform.table_columns.copy())
             else:
                 # Fallback to default columns
-                columns.extend([
-                    TableColumn("name", "Name", 300),  # Will stretch, width is minimum
-                    TableColumn("platform", "Platform", 120),
-                    TableColumn("region", "Region", 100),
-                    TableColumn("language", "Language", 100),
-                    TableColumn("version", "Version", 90),
-                    TableColumn("size", "Size", 100),
-                ])
+                columns.extend(
+                    [
+                        TableColumn("name", "Name", 300),  # Will stretch, width is minimum
+                        TableColumn("platform", "Platform", 120),
+                        TableColumn("region", "Region", 100),
+                        TableColumn("language", "Language", 100),
+                        TableColumn("version", "Version", 90),
+                        TableColumn("size", "Size", 100),
+                    ]
+                )
 
         # Update the model with new columns
         self._rom_model.set_columns(columns)
@@ -96,4 +100,3 @@ class ROMTableView(QTableView):
         """Apply table-specific settings."""
         self.verticalHeader().setDefaultSectionSize(row_height)
         self.verticalHeader().setMinimumSectionSize(max(20, row_height - 4))
-

@@ -16,8 +16,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.settings import Settings
-from .settings_base import SettingsPage
 from ..themes.themed_widget import ThemeHelper
+from .settings_base import SettingsPage
 
 
 class RetroAchievementsPage(SettingsPage):
@@ -141,28 +141,34 @@ class RetroAchievementsPage(SettingsPage):
 
         # Test the connection in a simple way
         try:
-            params = urlencode({
-                'z': username,
-                'y': api_key,
-                'i': 7,  # Nintendo 64 system
-                'h': 1,
-                'f': 1
-            })
+            params = urlencode(
+                {
+                    "z": username,
+                    "y": api_key,
+                    "i": 7,  # Nintendo 64 system
+                    "h": 1,
+                    "f": 1,
+                }
+            )
 
             url = f"https://retroachievements.org/API/API_GetGameList.php?{params}"
-            request = urllib.request.Request(url, headers={'User-Agent': 'RomShelf/1.0'})
+            request = urllib.request.Request(url, headers={"User-Agent": "RomShelf/1.0"})
 
             with urllib.request.urlopen(request, timeout=10) as response:
                 if response.status == 200:
                     self._status_label.setText("✅ Connection successful! Credentials are working.")
                     ThemeHelper.apply_status_style(self._status_label, "success")
                 else:
-                    self._status_label.setText(f"❌ Connection failed with status code: {response.status}")
+                    self._status_label.setText(
+                        f"❌ Connection failed with status code: {response.status}"
+                    )
                     ThemeHelper.apply_status_style(self._status_label, "error")
 
         except urllib.error.HTTPError as e:
             if e.code == 401:
-                self._status_label.setText("❌ Authentication failed. Please check your username and API key.")
+                self._status_label.setText(
+                    "❌ Authentication failed. Please check your username and API key."
+                )
             else:
                 self._status_label.setText(f"❌ HTTP Error: {e.code}")
             ThemeHelper.apply_status_style(self._status_label, "error")
@@ -175,8 +181,8 @@ class RetroAchievementsPage(SettingsPage):
     def load_settings(self, settings: Settings) -> None:
         """Load settings into the page."""
         try:
-            self._username_edit.setText(getattr(settings, 'retroachievements_username', ''))
-            self._api_key_edit.setText(getattr(settings, 'retroachievements_api_key', ''))
+            self._username_edit.setText(getattr(settings, "retroachievements_username", ""))
+            self._api_key_edit.setText(getattr(settings, "retroachievements_api_key", ""))
         except RuntimeError:
             # Widget was deleted
             pass
