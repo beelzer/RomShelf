@@ -1,0 +1,278 @@
+"""Table model for displaying ROM entries."""
+
+from typing import Any
+
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+
+from ..core.rom_database import get_rom_database
+from ..platforms.base_platform import TableColumn
+from .rom_entry import ROMEntry
+
+
+class ROMTableModel(QAbstractTableModel):
+    """Table model for ROM entries."""
+
+    def __init__(self, parent: Any | None = None) -> None:
+        """Initialize the table model."""
+        super().__init__(parent)
+        self._rom_entries: list[ROMEntry] = []
+        self._columns: list[TableColumn] = []
+        self._filtered_entries: list[ROMEntry] = []
+        self._platform_filter: list[str] = []  # Platform IDs to show
+        self._search_filter: str = ""  # Search text filter
+
+    def set_columns(self, columns: list[TableColumn]) -> None:
+        """Set the table columns."""
+        self.beginResetModel()
+        self._columns = columns
+        self.endResetModel()
+
+    def set_rom_entries(self, entries: list[ROMEntry]) -> None:
+        """Set the ROM entries."""
+        self.beginResetModel()
+        self._rom_entries = entries
+        self._apply_filter()
+        self.endResetModel()
+
+    def add_rom_entries(self, entries: list[ROMEntry]) -> None:
+        """Add ROM entries to the model."""
+        if not entries:
+            return
+
+        # Always add all entries to the underlying data
+        self._rom_entries.extend(entries)
+
+        # Filter entries based on current platform filter for display
+        filtered_entries = [
+            entry
+            for entry in entries
+            if not self._platform_filter or entry.platform_id in self._platform_filter
+        ]
+
+        if not filtered_entries:
+            return
+
+        start_row = len(self._filtered_entries)
+        end_row = start_row + len(filtered_entries) - 1
+
+        self.beginInsertRows(QModelIndex(), start_row, end_row)
+        self._filtered_entries.extend(filtered_entries)
+        self.endInsertRows()
+
+    def clear(self) -> None:
+        """Clear all ROM entries."""
+        self.beginResetModel()
+        self._rom_entries.clear()
+        self._filtered_entries.clear()
+        self.endResetModel()
+
+    def set_platform_filter(self, platform_ids: list[str]) -> None:
+        """Set which platforms to show."""
+        self.beginResetModel()
+        self._platform_filter = platform_ids
+        self._apply_filter()
+        self.endResetModel()
+
+    def set_search_filter(self, search_text: str) -> None:
+        """Set the search text filter."""
+        self.beginResetModel()
+        self._search_filter = search_text.lower().strip()
+        self._apply_filter()
+        self.endResetModel()
+
+    def _apply_filter(self) -> None:
+        """Apply the current platform and search filters."""
+        # Start with all entries
+        filtered_entries = self._rom_entries.copy()
+
+        # Apply platform filter
+        if self._platform_filter:
+            filtered_entries = [
+                entry for entry in filtered_entries
+                if entry.platform_id in self._platform_filter
+            ]
+
+        # Apply search filter
+        if self._search_filter:
+            filtered_entries = [
+                entry for entry in filtered_entries
+                if self._matches_search(entry, self._search_filter)
+            ]
+
+        self._filtered_entries = filtered_entries
+
+    def rowCount(self, parent: QModelIndex | None = None) -> int:
+        """Return the number of rows."""
+        return len(self._filtered_entries)
+
+    def columnCount(self, parent: QModelIndex | None = None) -> int:
+        """Return the number of columns."""
+        return len(self._columns)
+
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        """Return data for the given index and role."""
+        if not index.isValid() or index.row() >= len(self._filtered_entries):
+            return None
+
+        entry = self._filtered_entries[index.row()]
+        column = self._columns[index.column()]
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            return self._get_display_data(entry, column.key)
+        elif role == Qt.ItemDataRole.ToolTipRole:
+            return self._get_tooltip_data(entry, column.key)
+        elif role == Qt.ItemDataRole.UserRole:
+            # Return raw sort data for Qt's sorting
+            return self._get_sort_data(entry, column.key)
+
+        return None
+
+    def headerData(
+        self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole
+    ) -> Any:
+        """Return header data."""
+        if (
+            role == Qt.ItemDataRole.DisplayRole
+            and orientation == Qt.Orientation.Horizontal
+            and 0 <= section < len(self._columns)
+        ):
+            return self._columns[section].label
+        return None
+
+    def _get_display_data(self, entry: ROMEntry, key: str) -> str:
+        """Get display data for a ROM entry field."""
+        if key == "actions":
+            return ""  # Actions column is handled by custom delegate
+        elif key == "name":
+            return entry.display_name
+        elif key == "size":
+            return self._format_file_size(entry.file_size)
+        elif key == "platform":
+            return entry.platform_id.upper()
+        elif key == "hash":
+            return self._get_rom_hash(entry)
+        elif key in entry.metadata:
+            return str(entry.metadata[key])
+        else:
+            return ""
+
+    def _get_tooltip_data(self, entry: ROMEntry, key: str) -> str:
+        """Get tooltip data for a ROM entry field."""
+        if key == "actions":
+            return "Action column"
+        elif key == "name":
+            tooltip_parts = [f"File: {entry.file_path}"]
+            if entry.internal_path:
+                tooltip_parts.append(f"Internal: {entry.internal_path}")
+            if entry.related_files:
+                related_str = ", ".join(f.name for f in entry.related_files)
+                tooltip_parts.append(f"Related: {related_str}")
+            return "\n".join(tooltip_parts)
+        elif key == "hash":
+            hash_value = self._get_rom_hash(entry)
+            return f"MD5: {hash_value}" if hash_value else "MD5 hash not available"
+        return self._get_display_data(entry, key)
+
+    def _get_sort_data(self, entry: ROMEntry, key: str) -> Any:
+        """Get sort data for a ROM entry field."""
+        if key == "actions":
+            # Sort by name for actions column
+            return entry.display_name.lower()
+        elif key == "name":
+            return entry.display_name.lower()
+        elif key == "size":
+            return entry.file_size  # Return numeric value for proper sorting
+        elif key == "platform":
+            return entry.platform_id.lower()
+        elif key == "hash":
+            return self._get_rom_hash(entry).lower()
+        elif key in entry.metadata:
+            value = entry.metadata[key]
+            if isinstance(value, str):
+                return value.lower()
+            else:
+                return value  # Return numeric values as-is
+        else:
+            return ""
+
+    def _matches_search(self, entry: ROMEntry, search_text: str) -> bool:
+        """Check if a ROM entry matches the search text."""
+        # Search in display name
+        if search_text in entry.display_name.lower():
+            return True
+
+        # Search in platform name
+        from ..platforms.platform_registry import platform_registry
+        platform = platform_registry.get_platform(entry.platform_id)
+        if platform and search_text in platform.name.lower():
+            return True
+
+        # Search in metadata fields
+        for key, value in entry.metadata.items():
+            if search_text in str(value).lower():
+                return True
+
+        # Search in file name (without path)
+        if search_text in entry.file_path.name.lower():
+            return True
+
+        return False
+
+    def _get_rom_hash(self, entry: ROMEntry) -> str:
+        """Get MD5 hash for a ROM entry from the database."""
+        try:
+            rom_db = get_rom_database()
+            fingerprint = rom_db.get_rom_fingerprint(entry.file_path, entry.internal_path)
+            if fingerprint and fingerprint.md5_hash:
+                return fingerprint.md5_hash
+            return ""
+        except Exception:
+            return ""
+
+    def _format_file_size(self, size: int) -> str:
+        """Format file size in human-readable format."""
+        if size < 1024:
+            return f"{size} B"
+        elif size < 1024 * 1024:
+            return f"{size // 1024} KB"
+        elif size < 1024 * 1024 * 1024:
+            return f"{size // (1024 * 1024)} MB"
+        else:
+            return f"{size // (1024 * 1024 * 1024)} GB"
+
+    def get_rom_entry(self, index: QModelIndex) -> ROMEntry | None:
+        """Get ROM entry at the given index."""
+        if not index.isValid() or index.row() >= len(self._filtered_entries):
+            return None
+        return self._filtered_entries[index.row()]
+
+    def get_all_rom_entries(self) -> list[ROMEntry]:
+        """Get all ROM entries (unfiltered)."""
+        return self._rom_entries.copy()
+
+    def get_search_filtered_entries(self) -> list[ROMEntry]:
+        """Get ROM entries filtered by search text only (ignoring platform filter)."""
+        if not self._search_filter:
+            return self._rom_entries.copy()
+
+        return [
+            entry for entry in self._rom_entries
+            if self._matches_search(entry, self._search_filter)
+        ]
+
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        """Sort the table by the given column."""
+        if column < 0 or column >= len(self._columns):
+            return
+
+        self.layoutAboutToBeChanged.emit()
+
+        column_key = self._columns[column].key
+        reverse = order == Qt.SortOrder.DescendingOrder
+
+        def sort_key(entry: ROMEntry) -> Any:
+            """Generate sort key for an entry."""
+            return self._get_sort_data(entry, column_key)
+
+        self._filtered_entries.sort(key=sort_key, reverse=reverse)
+        self.layoutChanged.emit()
