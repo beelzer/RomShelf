@@ -10,9 +10,9 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.rom_scanner import ROMScannerThread
-from ...core.settings import SettingsManager
 from ...models.rom_table_model import ROMTableModel
 from ...platforms.platform_registry import platform_registry
+from ...services import ServiceContainer
 from ..settings import SettingsDialog
 from ..styles import DARK_STYLE, LIGHT_STYLE
 from .platform_tree import PlatformTreeWidget
@@ -24,10 +24,11 @@ from .toolbar_manager import ToolbarManager
 class MainWindow(QMainWindow):
     """Main window for the ROM Shelf application."""
 
-    def __init__(self, settings_manager: SettingsManager) -> None:
+    def __init__(self, service_container: ServiceContainer) -> None:
         """Initialize the main window."""
         super().__init__()
-        self._settings_manager = settings_manager
+        self._service_container = service_container
+        self._settings_service = service_container.settings_service
 
         # Initialize components
         self._platform_tree: PlatformTreeWidget | None = None
@@ -126,7 +127,7 @@ class MainWindow(QMainWindow):
 
     def _apply_ui_settings(self) -> None:
         """Apply the current theme and UI settings."""
-        settings = self._settings_manager.settings
+        settings = self._settings_service.settings
 
         # Apply color theme
         if settings.theme == "light":
@@ -172,7 +173,7 @@ class MainWindow(QMainWindow):
 
     def _open_settings(self) -> None:
         """Open the settings dialog."""
-        dialog = SettingsDialog(self._settings_manager, self)
+        dialog = SettingsDialog(self._service_container.settings_service._settings_manager, self)
         # Connect to apply changes immediately when Apply is clicked
         dialog.settings_applied.connect(self._on_settings_applied)
         if dialog.exec():
@@ -231,12 +232,7 @@ class MainWindow(QMainWindow):
 
     def _has_platform_directories(self) -> bool:
         """Check if any platform has directories configured."""
-        settings = self._settings_manager.settings
-        for platform_settings in settings.platform_settings.values():
-            rom_directories = platform_settings.get('rom_directories', [])
-            if rom_directories:
-                return True
-        return False
+        return self._settings_service.has_any_platform_directories()
 
     def _update_fonts_recursively(self, widget, font):
         """Recursively apply font to widget and all its children."""
@@ -254,7 +250,7 @@ class MainWindow(QMainWindow):
 
     def _start_rom_scan(self) -> None:
         """Start scanning for ROMs based on platform-specific settings."""
-        settings = self._settings_manager.settings
+        settings = self._settings_service.settings
 
         # Create platform-specific configurations
         platform_configs = []
