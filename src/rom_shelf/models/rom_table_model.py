@@ -234,11 +234,20 @@ class ROMTableModel(QAbstractTableModel):
         if size < 1024:
             return f"{size} B"
         elif size < 1024 * 1024:
-            return f"{size // 1024} KB"
+            kb = size / 1024
+            if kb < 10:
+                return f"{kb:.1f} KB"
+            else:
+                return f"{kb:.0f} KB"
         elif size < 1024 * 1024 * 1024:
-            return f"{size // (1024 * 1024)} MB"
+            mb = size / (1024 * 1024)
+            if mb < 10:
+                return f"{mb:.1f} MB"
+            else:
+                return f"{mb:.0f} MB"
         else:
-            return f"{size // (1024 * 1024 * 1024)} GB"
+            gb = size / (1024 * 1024 * 1024)
+            return f"{gb:.2f} GB"
 
     def get_rom_entry(self, index: QModelIndex) -> ROMEntry | None:
         """Get ROM entry at the given index."""

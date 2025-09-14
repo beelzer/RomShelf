@@ -1,12 +1,14 @@
 """Main window for the ROM Shelf application using extracted components."""
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QMainWindow,
-    QSplitter,
+    QHBoxLayout,
     QVBoxLayout,
     QWidget,
     QApplication,
+    QSizePolicy,
 )
 
 from ...core.rom_scanner import ROMScannerThread
@@ -66,25 +68,21 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 8, 12, 12)
         layout.setSpacing(8)
 
-        # Main content splitter with improved proportions
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setChildrenCollapsible(False)
-        layout.addWidget(splitter)
+        # Main content layout - platform tree auto-sizes, table gets remaining space
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(8)
+        layout.addLayout(content_layout)
 
-        # Left sidebar - Platform tree
+        # Left sidebar - Platform tree (auto-sized to content)
         self._platform_tree = PlatformTreeWidget()
-        self._platform_tree.setMinimumWidth(220)
-        self._platform_tree.setMaximumWidth(300)
-        splitter.addWidget(self._platform_tree)
+        self._platform_tree.setMinimumWidth(200)
+        # Set size policy to auto-size to content width
+        self._platform_tree.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        content_layout.addWidget(self._platform_tree)
 
-        # Right side - ROM table
+        # Right side - ROM table (takes remaining space)
         self._rom_table = ROMTableView()
-        splitter.addWidget(self._rom_table)
-
-        # Set better splitter proportions
-        splitter.setSizes([250, 1050])
-        splitter.setStretchFactor(0, 0)  # Don't stretch sidebar
-        splitter.setStretchFactor(1, 1)  # Stretch table
+        content_layout.addWidget(self._rom_table, 1)  # Stretch factor 1
 
         # Initialize component managers
         self._toolbar_manager = ToolbarManager(self)
@@ -101,6 +99,10 @@ class MainWindow(QMainWindow):
             self._start_rom_scan, self._open_settings
         )
         self._toolbar_manager.create_status_bar()
+
+        # Hide menu bar by default - show on Alt press
+        self.menuBar().setVisible(False)
+        self._menu_visible = False
 
     def _setup_connections(self) -> None:
         """Set up signal connections between components."""
@@ -346,6 +348,22 @@ class MainWindow(QMainWindow):
             self._scanner_thread.wait()
             self._scanner_thread.deleteLater()
             self._scanner_thread = None
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle key press events for menu bar visibility."""
+        if event.key() == Qt.Key.Key_Alt:
+            if not self._menu_visible:
+                self.menuBar().setVisible(True)
+                self._menu_visible = True
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event: QKeyEvent) -> None:
+        """Handle key release events for menu bar visibility."""
+        if event.key() == Qt.Key.Key_Alt:
+            if self._menu_visible:
+                self.menuBar().setVisible(False)
+                self._menu_visible = False
+        super().keyReleaseEvent(event)
 
     def closeEvent(self, event) -> None:
         """Handle application close event."""

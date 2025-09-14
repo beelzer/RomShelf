@@ -35,14 +35,14 @@ class SuperNintendoPlatform(BasePlatform):
     def get_table_columns(self) -> list[TableColumn]:
         """Get table column configuration."""
         return [
-            TableColumn("name", "Name", 300),
-            TableColumn("region", "Region", 80),
-            TableColumn("language", "Language", 80),
-            TableColumn("version", "Version", 80),
+            TableColumn("name", "Name", 300),  # Will stretch, width is minimum
+            TableColumn("region", "Region", 100),
+            TableColumn("language", "Language", 100),
+            TableColumn("version", "Version", 90),
             TableColumn("size", "Size", 100),
             TableColumn("dump_status", "Status", 80),
             TableColumn("file_type", "Type", 80),
-            TableColumn("hash", "Hash", 200),
+            TableColumn("hash", "Hash", 160),
         ]
 
     def get_file_type_support(self) -> PlatformFileTypeSupport:

@@ -1,5 +1,6 @@
 """ROM table view component with configurable columns."""
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHeaderView, QTableView, QWidget
 
 from ...models.rom_table_model import ROMTableModel
@@ -24,13 +25,17 @@ class ROMTableView(QTableView):
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.setShowGrid(False)
 
+        # Disable text wrapping to use ellipsis instead
+        self.setWordWrap(False)
+        self.setTextElideMode(Qt.TextElideMode.ElideRight)
+
         # Set better row height
         self.verticalHeader().setDefaultSectionSize(28)
         self.verticalHeader().setMinimumSectionSize(24)
 
         # Configure horizontal header
         header = self.horizontalHeader()
-        header.setStretchLastSection(True)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setSortIndicatorShown(True)
         header.setHighlightSections(False)
@@ -50,11 +55,11 @@ class ROMTableView(QTableView):
         if selected_platform == "all":
             # Show default columns for all platforms view
             columns.extend([
-                TableColumn("name", "Name", 300),
-                TableColumn("platform", "Platform", 100),
-                TableColumn("region", "Region", 80),
-                TableColumn("language", "Language", 80),
-                TableColumn("version", "Version", 80),
+                TableColumn("name", "Name", 300),  # Will stretch, width is minimum
+                TableColumn("platform", "Platform", 120),
+                TableColumn("region", "Region", 100),
+                TableColumn("language", "Language", 100),
+                TableColumn("version", "Version", 90),
                 TableColumn("size", "Size", 100),
             ])
         else:
@@ -65,22 +70,30 @@ class ROMTableView(QTableView):
             else:
                 # Fallback to default columns
                 columns.extend([
-                    TableColumn("name", "Name", 300),
-                    TableColumn("platform", "Platform", 100),
-                    TableColumn("region", "Region", 80),
-                    TableColumn("language", "Language", 80),
-                    TableColumn("version", "Version", 80),
+                    TableColumn("name", "Name", 300),  # Will stretch, width is minimum
+                    TableColumn("platform", "Platform", 120),
+                    TableColumn("region", "Region", 100),
+                    TableColumn("language", "Language", 100),
+                    TableColumn("version", "Version", 90),
                     TableColumn("size", "Size", 100),
                 ])
 
         # Update the model with new columns
         self._rom_model.set_columns(columns)
 
-        # Apply column widths
+        # Configure column resize modes and widths
+        header = self.horizontalHeader()
         for i, column in enumerate(columns):
-            self.setColumnWidth(i, column.width)
+            if column.key == "name":
+                # Make Name column stretch to fill available space
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            else:
+                # Set other columns to fixed size
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
+                self.setColumnWidth(i, column.width)
 
     def apply_table_settings(self, row_height: int) -> None:
         """Apply table-specific settings."""
         self.verticalHeader().setDefaultSectionSize(row_height)
         self.verticalHeader().setMinimumSectionSize(max(20, row_height - 4))
+

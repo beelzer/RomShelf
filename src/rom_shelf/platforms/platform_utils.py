@@ -177,25 +177,25 @@ class PlatformUtils:
     def get_standard_handheld_columns() -> list[TableColumn]:
         """Get standard table columns for handheld gaming platforms (GB, GBC, GBA)."""
         return [
-            TableColumn("name", "Name", 300),
-            TableColumn("region", "Region", 80),
-            TableColumn("language", "Language", 80),
-            TableColumn("version", "Version", 80),
+            TableColumn("name", "Name", 300),  # Will stretch, width is minimum
+            TableColumn("region", "Region", 100),
+            TableColumn("language", "Language", 100),
+            TableColumn("version", "Version", 90),
             TableColumn("size", "Size", 100),
-            TableColumn("hash", "Hash", 200),
+            TableColumn("hash", "Hash", 160),
         ]
 
     @staticmethod
     def get_standard_console_columns() -> list[TableColumn]:
         """Get standard table columns for console gaming platforms (N64, etc)."""
         return [
-            TableColumn("name", "Name", 300),
-            TableColumn("region", "Region", 80),
-            TableColumn("language", "Language", 80),
-            TableColumn("version", "Version", 80),
+            TableColumn("name", "Name", 300),  # Will stretch, width is minimum
+            TableColumn("region", "Region", 100),
+            TableColumn("language", "Language", 100),
+            TableColumn("version", "Version", 90),
             TableColumn("size", "Size", 100),
             TableColumn("file_type", "Type", 80),
-            TableColumn("hash", "Hash", 200),
+            TableColumn("hash", "Hash", 160),
         ]
 
     @staticmethod

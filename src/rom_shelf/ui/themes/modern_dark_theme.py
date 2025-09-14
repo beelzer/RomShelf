@@ -539,6 +539,7 @@ QScrollBar:vertical {{
     margin: 2px;
 }}
 
+
 QScrollBar::handle:vertical {{
     background-color: {self.colors.scrollbar_handle};
     min-height: 30px;
