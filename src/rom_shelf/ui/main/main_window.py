@@ -1,0 +1,362 @@
+"""Main window for the ROM Shelf application using extracted components."""
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+    QApplication,
+)
+
+from ...core.rom_scanner import ROMScannerThread
+from ...core.settings import SettingsManager
+from ...models.rom_table_model import ROMTableModel
+from ...platforms.platform_registry import platform_registry
+from ..settings import SettingsDialog
+from ..styles import DARK_STYLE, LIGHT_STYLE
+from .platform_tree import PlatformTreeWidget
+from .rom_table_view import ROMTableView
+from .search_handler import SearchHandler
+from .toolbar_manager import ToolbarManager
+
+
+class MainWindow(QMainWindow):
+    """Main window for the ROM Shelf application."""
+
+    def __init__(self, settings_manager: SettingsManager) -> None:
+        """Initialize the main window."""
+        super().__init__()
+        self._settings_manager = settings_manager
+
+        # Initialize components
+        self._platform_tree: PlatformTreeWidget | None = None
+        self._rom_table: ROMTableView | None = None
+        self._search_handler: SearchHandler | None = None
+        self._toolbar_manager: ToolbarManager | None = None
+        self._rom_model: ROMTableModel | None = None
+
+        # Scanner thread
+        self._scanner_thread: ROMScannerThread | None = None
+
+        # Setup UI and connections
+        self._setup_ui()
+        self._setup_connections()
+        self._apply_ui_settings()
+
+        # Initialize ROM table model
+        self._setup_rom_model()
+
+        # Start initial scan if directories are configured
+        if self._has_platform_directories():
+            self._start_rom_scan()
+
+    def _setup_ui(self) -> None:
+        """Set up the user interface."""
+        self.setWindowTitle("ROM Shelf")
+        self.setMinimumSize(900, 600)
+        self.resize(1300, 800)
+
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(12, 8, 12, 12)
+        layout.setSpacing(8)
+
+        # Main content splitter with improved proportions
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        layout.addWidget(splitter)
+
+        # Left sidebar - Platform tree
+        self._platform_tree = PlatformTreeWidget()
+        self._platform_tree.setMinimumWidth(220)
+        self._platform_tree.setMaximumWidth(300)
+        splitter.addWidget(self._platform_tree)
+
+        # Right side - ROM table
+        self._rom_table = ROMTableView()
+        splitter.addWidget(self._rom_table)
+
+        # Set better splitter proportions
+        splitter.setSizes([250, 1050])
+        splitter.setStretchFactor(0, 0)  # Don't stretch sidebar
+        splitter.setStretchFactor(1, 1)  # Stretch table
+
+        # Initialize component managers
+        self._toolbar_manager = ToolbarManager(self)
+        self._search_handler = SearchHandler(self)
+
+        # Create UI components using managers
+        self._toolbar_manager.create_main_toolbar(
+            self._start_rom_scan, self._open_settings
+        )
+        search_toolbar = self._search_handler.create_search_toolbar(self)
+        self.addToolBar(search_toolbar)
+
+        self._toolbar_manager.create_menu_bar(
+            self._start_rom_scan, self._open_settings
+        )
+        self._toolbar_manager.create_status_bar()
+
+    def _setup_connections(self) -> None:
+        """Set up signal connections between components."""
+        if self._platform_tree:
+            self._platform_tree.platform_selected.connect(self._on_platform_selected)
+
+        if self._search_handler:
+            self._search_handler.filter_changed.connect(self._update_platform_counts)
+
+    def _setup_rom_model(self) -> None:
+        """Initialize the ROM table model and connect it to components."""
+        self._rom_model = ROMTableModel(self)
+
+        if self._rom_table:
+            self._rom_table.set_model(self._rom_model)
+
+            # Set up initial columns based on selected platform
+            if self._platform_tree:
+                initial_platform = self._platform_tree.get_selected_platform()
+                self._rom_table.update_columns(initial_platform)
+
+        if self._search_handler:
+            self._search_handler.set_rom_model(self._rom_model)
+
+    def _apply_ui_settings(self) -> None:
+        """Apply the current theme and UI settings."""
+        settings = self._settings_manager.settings
+
+        # Apply color theme
+        if settings.theme == "light":
+            self.setStyleSheet(LIGHT_STYLE)
+        else:
+            self.setStyleSheet(DARK_STYLE)
+
+        # Apply font size to the entire application
+        app = QApplication.instance()
+        if app:
+            app_font = app.font()
+            app_font.setPointSize(settings.font_size)
+            app.setFont(app_font)
+
+            # Also apply to main window and key components explicitly
+            self.setFont(app_font)
+
+            if self._platform_tree:
+                self._platform_tree.setFont(app_font)
+
+            if self._search_handler:
+                self._search_handler.apply_font_settings(app_font)
+
+            if self._toolbar_manager:
+                self._toolbar_manager.apply_font_settings(app_font)
+
+            # Table needs special handling
+            if self._rom_table:
+                self._rom_table.setFont(app_font)
+                # Also apply to table headers
+                self._rom_table.horizontalHeader().setFont(app_font)
+                self._rom_table.verticalHeader().setFont(app_font)
+                # Force the table to update its appearance
+                self._rom_table.reset()
+                self._rom_table.repaint()
+
+            # Force update on all child widgets
+            self._update_fonts_recursively(self, app_font)
+
+        # Apply table row height
+        if self._rom_table:
+            self._rom_table.apply_table_settings(settings.table_row_height)
+
+    def _open_settings(self) -> None:
+        """Open the settings dialog."""
+        dialog = SettingsDialog(self._settings_manager, self)
+        # Connect to apply changes immediately when Apply is clicked
+        dialog.settings_applied.connect(self._on_settings_applied)
+        if dialog.exec():
+            # Apply new settings when OK is clicked
+            self._on_settings_applied()
+
+    def _on_platform_selected(self, selected_platform: str) -> None:
+        """Handle platform selection changes."""
+        if not self._rom_model or not self._rom_table:
+            return
+
+        if selected_platform == "all":
+            # Show all platforms
+            all_platforms = [p.platform_id for p in platform_registry.get_all_platforms()]
+            self._rom_model.set_platform_filter(all_platforms)
+        else:
+            # Show only selected platform
+            self._rom_model.set_platform_filter([selected_platform])
+
+        self._rom_table.update_columns(selected_platform)
+        self._update_platform_counts()
+
+    def _update_platform_counts(self) -> None:
+        """Update ROM counts for each platform."""
+        if not self._rom_model or not self._platform_tree:
+            return
+
+        # Count ROMs by platform using search-filtered entries (ignoring platform filter)
+        counts: dict[str, int] = {}
+        entries = self._rom_model.get_search_filtered_entries()
+
+        for entry in entries:
+            counts[entry.platform_id] = counts.get(entry.platform_id, 0) + 1
+
+        self._platform_tree.update_rom_counts(counts)
+
+    def add_rom_entries(self, entries) -> None:
+        """Add ROM entries to the table."""
+        if not entries or not self._rom_model:
+            return
+
+        self._rom_model.add_rom_entries(entries)
+        self._update_platform_counts()
+
+    def clear_rom_entries(self) -> None:
+        """Clear all ROM entries."""
+        if self._rom_model:
+            self._rom_model.clear()
+        self._update_platform_counts()
+
+    def get_selected_platform(self) -> str:
+        """Get the selected platform ID."""
+        if self._platform_tree:
+            return self._platform_tree.get_selected_platform()
+        return "all"
+
+    def _has_platform_directories(self) -> bool:
+        """Check if any platform has directories configured."""
+        settings = self._settings_manager.settings
+        for platform_settings in settings.platform_settings.values():
+            rom_directories = platform_settings.get('rom_directories', [])
+            if rom_directories:
+                return True
+        return False
+
+    def _update_fonts_recursively(self, widget, font):
+        """Recursively apply font to widget and all its children."""
+        try:
+            widget.setFont(font)
+            for child in widget.findChildren(QWidget):
+                child.setFont(font)
+        except Exception:
+            pass  # Skip widgets that don't support fonts
+
+    def _on_settings_applied(self) -> None:
+        """Handle settings being applied."""
+        self._apply_ui_settings()
+        self._start_rom_scan()
+
+    def _start_rom_scan(self) -> None:
+        """Start scanning for ROMs based on platform-specific settings."""
+        settings = self._settings_manager.settings
+
+        # Create platform-specific configurations
+        platform_configs = []
+        platforms = platform_registry.get_all_platforms()
+        total_directories = 0
+
+        for platform in platforms:
+            # Get platform-specific settings
+            platform_settings = settings.platform_settings.get(platform.platform_id, {})
+
+            # Get platform directories
+            platform_directories = platform_settings.get('rom_directories', [])
+
+            if platform_directories:  # Only add platforms that have directories configured
+                platform_configs.append({
+                    'platform': platform,
+                    'directories': platform_directories,
+                    'scan_subdirectories': platform_settings.get('scan_subdirectories', True),
+                    'handle_archives': platform_settings.get('handle_archives', True),
+                    'supported_formats': platform_settings.get('supported_formats', platform.get_supported_handlers()),
+                    'supported_archives': platform_settings.get('supported_archives', platform.get_archive_content_extensions())
+                })
+                total_directories += len(platform_directories)
+
+        # Don't scan if no directories are configured for any platform
+        if not platform_configs:
+            if self._toolbar_manager:
+                self._toolbar_manager.update_status("No ROM directories configured for any platform. Check Settings.")
+            return
+
+        # Stop any existing scan
+        if self._scanner_thread and self._scanner_thread.isRunning():
+            self._scanner_thread.quit()
+            self._scanner_thread.wait()
+
+        # Clear existing ROMs
+        self.clear_rom_entries()
+
+        # Update status
+        platform_count = len(platform_configs)
+        if self._toolbar_manager:
+            self._toolbar_manager.update_status(f"Scanning {total_directories} directories across {platform_count} platforms...")
+
+        # Start new scan with platform-specific configurations
+        self._scanner_thread = ROMScannerThread(platform_configs)
+
+        # Connect scanner signals
+        self._scanner_thread.scanner.rom_found.connect(self._on_rom_found)
+        self._scanner_thread.scanner.scan_completed.connect(self._on_scan_completed)
+        self._scanner_thread.scanner.scan_error.connect(self._on_scan_error)
+
+        # Start scanning
+        self._scanner_thread.start()
+        print(f"Started scanning {total_directories} directories across {platform_count} platforms...")
+
+    def _on_rom_found(self, rom_entry) -> None:
+        """Handle a ROM being found during scan."""
+        print(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
+        self.add_rom_entries([rom_entry])
+
+    def _on_scan_completed(self, all_entries) -> None:
+        """Handle scan completion."""
+        print(f"Scan completed. Found {len(all_entries)} total ROMs.")
+        if self._toolbar_manager:
+            self._toolbar_manager.update_status(f"Scan completed. Found {len(all_entries)} ROMs.")
+
+        # Clean up scanner thread properly
+        if self._scanner_thread:
+            self._scanner_thread.quit()
+            self._scanner_thread.wait()
+            self._scanner_thread.deleteLater()
+            self._scanner_thread = None
+
+    def _on_scan_error(self, error_msg) -> None:
+        """Handle scan errors."""
+        print(f"Scan error: {error_msg}")
+        if self._toolbar_manager:
+            self._toolbar_manager.update_status(f"Scan error: {error_msg}")
+
+        # Clean up scanner thread properly
+        if self._scanner_thread:
+            self._scanner_thread.quit()
+            self._scanner_thread.wait()
+            self._scanner_thread.deleteLater()
+            self._scanner_thread = None
+
+    def closeEvent(self, event) -> None:
+        """Handle application close event."""
+        # Stop scanner thread if running
+        if self._scanner_thread:
+            if self._scanner_thread.isRunning():
+                print("Stopping ROM scanner thread...")
+                self._scanner_thread.scanner.stop_scan()
+                self._scanner_thread.quit()
+                self._scanner_thread.wait(5000)  # Wait up to 5 seconds
+                if self._scanner_thread.isRunning():
+                    print("Thread didn't stop gracefully, terminating...")
+                    self._scanner_thread.terminate()
+                    self._scanner_thread.wait(1000)  # Wait 1 more second after terminate
+
+            # Clean up thread object
+            self._scanner_thread.deleteLater()
+            self._scanner_thread = None
+
+        event.accept()

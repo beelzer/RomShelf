@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from .core.settings import SettingsManager
-from .ui.main_window import MainWindow
+from .ui.main import MainWindow
 
 
 def main() -> int:
