@@ -2,10 +2,11 @@
 
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QSize
 
 from ..core.rom_database import get_rom_database
 from ..platforms.base_platform import TableColumn
+from ..utils.flag_icons import FlagIcons
 from .rom_entry import ROMEntry
 
 
@@ -119,6 +120,9 @@ class ROMTableModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.DisplayRole:
             return self._get_display_data(entry, column.key)
+        elif role == Qt.ItemDataRole.DecorationRole and column.key == "region":
+            # Return flag icon for region column
+            return self._get_region_icon(entry, column.key)
         elif role == Qt.ItemDataRole.ToolTipRole:
             return self._get_tooltip_data(entry, column.key)
         elif role == Qt.ItemDataRole.UserRole:
@@ -139,6 +143,14 @@ class ROMTableModel(QAbstractTableModel):
             return self._columns[section].label
         return None
 
+    def _get_region_icon(self, entry: ROMEntry, key: str) -> Any:
+        """Get region flag icon for a ROM entry."""
+        if key == "region" and key in entry.metadata:
+            region_value = str(entry.metadata[key])
+            return FlagIcons.get_flag_icon(region_value, QSize(20, 14))
+        return None
+
+
     def _get_display_data(self, entry: ROMEntry, key: str) -> str:
         """Get display data for a ROM entry field."""
         if key == "actions":
@@ -151,6 +163,12 @@ class ROMTableModel(QAbstractTableModel):
             return entry.platform_id.upper()
         elif key == "hash":
             return self._get_rom_hash(entry)
+        elif key == "region" and key in entry.metadata:
+            # Special handling for region column - return text only (icon handled separately)
+            region_value = str(entry.metadata[key])
+            return FlagIcons.get_display_text_for_region(region_value, include_flag=False)
+        elif key == "language" and key in entry.metadata:
+            return str(entry.metadata[key])
         elif key in entry.metadata:
             return str(entry.metadata[key])
         else:
@@ -171,6 +189,8 @@ class ROMTableModel(QAbstractTableModel):
         elif key == "hash":
             hash_value = self._get_rom_hash(entry)
             return f"MD5: {hash_value}" if hash_value else "MD5 hash not available"
+        elif key == "language" and key in entry.metadata:
+            return str(entry.metadata[key])
         return self._get_display_data(entry, key)
 
     def _get_sort_data(self, entry: ROMEntry, key: str) -> Any:

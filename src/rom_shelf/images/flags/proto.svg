@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480">
+  <!-- Valve missing texture checkerboard pattern with bigger squares -->
+  <defs>
+    <pattern id="checkerboard" patternUnits="userSpaceOnUse" width="240" height="240">
+      <!-- Black squares -->
+      <rect x="0" y="0" width="120" height="120" fill="#010001"/>
+      <rect x="120" y="120" width="120" height="120" fill="#010001"/>
+      <!-- Magenta squares -->
+      <rect x="120" y="0" width="120" height="120" fill="#ff00dc"/>
+      <rect x="0" y="120" width="120" height="120" fill="#ff00dc"/>
+    </pattern>
+  </defs>
+
+  <!-- Apply checkerboard pattern -->
+  <rect width="640" height="480" fill="url(#checkerboard)"/>
+</svg>
