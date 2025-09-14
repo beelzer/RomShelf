@@ -14,7 +14,7 @@ from ...models.rom_table_model import ROMTableModel
 from ...platforms.platform_registry import platform_registry
 from ...services import ServiceContainer
 from ..settings import SettingsDialog
-from ..styles import DARK_STYLE, LIGHT_STYLE
+from ..themes import get_theme_manager
 from .platform_tree import PlatformTreeWidget
 from .rom_table_view import ROMTableView
 from .search_handler import SearchHandler
@@ -129,11 +129,21 @@ class MainWindow(QMainWindow):
         """Apply the current theme and UI settings."""
         settings = self._settings_service.settings
 
-        # Apply color theme
-        if settings.theme == "light":
-            self.setStyleSheet(LIGHT_STYLE)
+        # Apply modern theme
+        theme_manager = get_theme_manager()
+
+        # Use only modern themes - update settings if needed
+        if settings.theme == "dark":
+            theme_name = "modern dark"
+        elif settings.theme == "light":
+            theme_name = "modern light"
         else:
-            self.setStyleSheet(DARK_STYLE)
+            theme_name = settings.theme
+
+        if theme_manager.set_theme(theme_name):
+            app = QApplication.instance()
+            if app:
+                theme_manager.apply_theme_to_application(app)
 
         # Apply font size to the entire application
         app = QApplication.instance()

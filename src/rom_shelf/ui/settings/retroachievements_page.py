@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from ...core.settings import Settings
 from .settings_base import SettingsPage
+from ..themes.themed_widget import ThemeHelper
 
 
 class RetroAchievementsPage(SettingsPage):
@@ -34,7 +35,7 @@ class RetroAchievementsPage(SettingsPage):
 
         # Add header with description
         header_label = QLabel("RetroAchievements Integration")
-        header_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px;")
+        ThemeHelper.apply_header_style(header_label)
         layout.addWidget(header_label)
 
         description_label = QLabel(
@@ -42,7 +43,7 @@ class RetroAchievementsPage(SettingsPage):
             "This allows clicking the RA icon to open the exact achievement page for your ROM."
         )
         description_label.setWordWrap(True)
-        description_label.setStyleSheet("color: gray; margin-bottom: 15px;")
+        ThemeHelper.apply_description_style(description_label)
         layout.addWidget(description_label)
 
         # API Credentials group
@@ -131,11 +132,11 @@ class RetroAchievementsPage(SettingsPage):
 
         if not username or not api_key:
             self._status_label.setText("⚠️ Please enter both username and API key")
-            self._status_label.setStyleSheet("color: orange;")
+            ThemeHelper.apply_status_style(self._status_label, "warning")
             return
 
         self._status_label.setText("🔄 Testing connection...")
-        self._status_label.setStyleSheet("color: blue;")
+        ThemeHelper.apply_status_style(self._status_label, "info")
         self._test_connection_btn.setEnabled(False)
 
         # Test the connection in a simple way
@@ -154,20 +155,20 @@ class RetroAchievementsPage(SettingsPage):
             with urllib.request.urlopen(request, timeout=10) as response:
                 if response.status == 200:
                     self._status_label.setText("✅ Connection successful! Credentials are working.")
-                    self._status_label.setStyleSheet("color: green;")
+                    ThemeHelper.apply_status_style(self._status_label, "success")
                 else:
                     self._status_label.setText(f"❌ Connection failed with status code: {response.status}")
-                    self._status_label.setStyleSheet("color: red;")
+                    ThemeHelper.apply_status_style(self._status_label, "error")
 
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 self._status_label.setText("❌ Authentication failed. Please check your username and API key.")
             else:
                 self._status_label.setText(f"❌ HTTP Error: {e.code}")
-            self._status_label.setStyleSheet("color: red;")
+            ThemeHelper.apply_status_style(self._status_label, "error")
         except Exception as e:
             self._status_label.setText(f"❌ Connection error: {e!s}")
-            self._status_label.setStyleSheet("color: red;")
+            ThemeHelper.apply_status_style(self._status_label, "error")
 
         self._test_connection_btn.setEnabled(True)
 

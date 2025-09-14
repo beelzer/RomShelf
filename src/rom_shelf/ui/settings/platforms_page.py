@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from ...core.settings import Settings
 from ...platforms.platform_registry import PlatformRegistry
 from .settings_base import SettingsPage, normalize_path_display
+from ..themes.themed_widget import ThemeHelper
 
 
 class PlatformsPage(SettingsPage):
@@ -46,7 +47,7 @@ class PlatformsPage(SettingsPage):
 
         # Header
         header_label = QLabel("Platform Directory Management")
-        header_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        ThemeHelper.apply_header_style(header_label)
         layout.addWidget(header_label)
 
         description_label = QLabel(

@@ -29,6 +29,7 @@ from ...core.settings import Settings
 from ...platforms.base_platform import PlatformSetting, SettingType
 from ...platforms.platform_registry import PlatformRegistry, platform_registry
 from .settings_base import SettingsPage, normalize_path_display
+from ..themes.themed_widget import ThemeHelper
 
 
 class PlatformSpecificPage(SettingsPage):
@@ -59,11 +60,11 @@ class PlatformSpecificPage(SettingsPage):
                 self._create_settings_ui(layout, platform_settings)
             else:
                 error_label = QLabel(f"Platform '{self._platform_id}' not found.")
-                error_label.setStyleSheet("color: red;")
+                ThemeHelper.apply_status_style(error_label, "error")
                 layout.addWidget(error_label)
         except Exception as e:
             error_label = QLabel(f"Error loading platform settings: {e}")
-            error_label.setStyleSheet("color: red;")
+            ThemeHelper.apply_status_style(error_label, "error")
             layout.addWidget(error_label)
 
     def _create_settings_ui(self, layout: QVBoxLayout, platform_settings: list[PlatformSetting]) -> None:
@@ -239,14 +240,11 @@ class PlatformSpecificPage(SettingsPage):
             button_layout.setSpacing(3)
 
             add_button = QPushButton("Add")
-            add_button.setMaximumWidth(60)
-            add_button.setMaximumHeight(24)
+            ThemeHelper.auto_size_button(add_button)
             bulk_import_button = QPushButton("Bulk Import")
-            bulk_import_button.setMaximumWidth(100)
-            bulk_import_button.setMaximumHeight(24)
+            ThemeHelper.auto_size_button(bulk_import_button)
             remove_button = QPushButton("Remove")
-            remove_button.setMaximumWidth(80)
-            remove_button.setMaximumHeight(24)
+            ThemeHelper.auto_size_button(remove_button)
 
             def add_directory():
                 directory = QFileDialog.getExistingDirectory(self, f"Select {setting.label}")
@@ -328,11 +326,11 @@ class PlatformSpecificPage(SettingsPage):
         button_layout.setSpacing(4)
 
         add_button = QPushButton("Add")
-        add_button.setMaximumSize(60, 24)
+        ThemeHelper.auto_size_button(add_button)
         bulk_import_button = QPushButton("Bulk Import")
-        bulk_import_button.setMaximumSize(100, 24)
+        ThemeHelper.auto_size_button(bulk_import_button)
         remove_button = QPushButton("Remove")
-        remove_button.setMaximumSize(80, 24)
+        ThemeHelper.auto_size_button(remove_button)
 
         def add_directory():
             directory = QFileDialog.getExistingDirectory(self, f"Select {setting.label}")
