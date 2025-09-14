@@ -315,11 +315,11 @@ QTableView::item:focus {{
 QHeaderView::section {{
     background-color: {self.colors.card};
     color: {self.colors.text};
-    padding: 12px 16px;
+    padding: 8px 12px;
     border: none;
     border-bottom: 1px solid {self.colors.border};
     border-right: 1px solid {self.colors.border_light};
-    font-weight: 600;
+    font-weight: 500;
 }}
 
 QHeaderView::section:first {{
@@ -597,6 +597,58 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
     background: none;
 }}"""
 
+    def get_progress_bar_stylesheet(self) -> str:
+        """Get stylesheet for modern progress bars."""
+        return f"""
+QProgressBar {{
+    background-color: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 9px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: {self.colors.text_on_primary};
+    padding: 0px;
+    height: 18px;
+}}
+
+QProgressBar::chunk {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 {self.colors.primary},
+        stop:0.5 rgba({int(self.colors.primary[1:3], 16)}, {int(self.colors.primary[3:5], 16)}, {int(self.colors.primary[5:7], 16)}, 0.9),
+        stop:1 {self.colors.primary});
+    border-radius: 9px;
+    border: none;
+    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.2);
+}}
+
+QProgressBar:disabled {{
+    background-color: rgba(255, 255, 255, 0.03);
+    color: {self.colors.text_disabled};
+}}
+
+QProgressBar:disabled::chunk {{
+    background: {self.colors.text_disabled};
+    box-shadow: none;
+}}
+
+/* Modern glass-morphism effect */
+QProgressBar:focus {{
+    background-color: rgba(255, 255, 255, 0.12);
+}}
+
+/* Remove any separators or lines around progress bar */
+QStatusBar QProgressBar {{
+    margin: 0px;
+    border: none;
+    border-left: none;
+    border-right: none;
+}}
+
+QStatusBar::item {{
+    border: none;
+}}"""
+
     def get_complete_stylesheet(self) -> str:
         """Get the complete stylesheet for the theme."""
         return "\n\n".join(
@@ -606,6 +658,7 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
                 self.get_table_stylesheet(),
                 self.get_form_stylesheet(),
                 self.get_scrollbar_stylesheet(),
+                self.get_progress_bar_stylesheet(),
             ]
         )
 

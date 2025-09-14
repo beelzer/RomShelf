@@ -319,6 +319,15 @@ class MainWindow(QMainWindow):
         self._scanner_thread.scanner.rom_found.connect(self._on_rom_found)
         self._scanner_thread.scanner.scan_completed.connect(self._on_scan_completed)
         self._scanner_thread.scanner.scan_error.connect(self._on_scan_error)
+        self._scanner_thread.scanner.progress_updated.connect(self._on_scan_progress)
+
+        # Reset progress tracking
+        self._last_progress_update = 0
+        self._current_progress_percentage = 0
+
+        # Show progress bar
+        if self._toolbar_manager:
+            self._toolbar_manager.show_progress_bar()
 
         # Start scanning
         self._scanner_thread.start()
@@ -334,7 +343,15 @@ class MainWindow(QMainWindow):
     def _on_scan_completed(self, all_entries) -> None:
         """Handle scan completion."""
         print(f"Scan completed. Found {len(all_entries)} total ROMs.")
+
         if self._toolbar_manager:
+            # Set to 100% to show completion before hiding
+            self._toolbar_manager.update_progress(100)
+            self._current_progress_percentage = 100
+            print("Progress: Scan completed (100%)")
+
+            # Brief delay to show 100% before hiding
+            self._toolbar_manager.hide_progress_bar()
             self._toolbar_manager.update_status(f"Scan completed. Found {len(all_entries)} ROMs.")
 
         # Clean up scanner thread properly
@@ -347,7 +364,9 @@ class MainWindow(QMainWindow):
     def _on_scan_error(self, error_msg) -> None:
         """Handle scan errors."""
         print(f"Scan error: {error_msg}")
+
         if self._toolbar_manager:
+            self._toolbar_manager.hide_progress_bar()
             self._toolbar_manager.update_status(f"Scan error: {error_msg}")
 
         # Clean up scanner thread properly
@@ -356,6 +375,63 @@ class MainWindow(QMainWindow):
             self._scanner_thread.wait()
             self._scanner_thread.deleteLater()
             self._scanner_thread = None
+
+    def _on_scan_progress(self, progress) -> None:
+        """Handle scan progress updates."""
+        if not self._toolbar_manager:
+            return
+
+        # Throttle updates - only update UI every 5 files to prevent freezing
+        should_update_ui = (
+            progress.files_processed == 1  # First file
+            or progress.files_processed % 5 == 0  # Every 5 files
+            or progress.files_processed >= progress.total_files  # Last file
+            or progress.files_processed - self._last_progress_update
+            >= 10  # Force update every 10 files
+        )
+
+        if not should_update_ui:
+            return
+
+        self._last_progress_update = progress.files_processed
+
+        # Update progress bar
+        if progress.total_files > 0 and progress.files_processed <= progress.total_files:
+            # Scale file processing to 95% max, reserve 5% for completion
+            file_progress = (progress.files_processed / progress.total_files) * 95
+            percentage = int(file_progress)
+
+            # Only update if progress has actually increased
+            if percentage > self._current_progress_percentage:
+                # Ensure we're in determinate mode before updating (only once)
+                if self._current_progress_percentage == 0:
+                    self._toolbar_manager.set_progress_indeterminate(False)
+
+                # Debug output first
+                print(
+                    f"Progress: {progress.files_processed}/{progress.total_files} ({percentage}%)"
+                )
+
+                # Update progress bar with new percentage
+                self._toolbar_manager.update_progress(percentage)
+                self._current_progress_percentage = percentage
+        else:
+            # If we don't have total yet or something is wrong, show indeterminate progress
+            if progress.total_files == 0:
+                print(f"Files processed: {progress.files_processed} (total unknown)")
+            if self._current_progress_percentage == 0:  # Only set indeterminate once
+                self._toolbar_manager.set_progress_indeterminate(True)
+
+        # Update status message
+        if progress.current_file and progress.total_files > 0:
+            file_name = progress.current_file.split("/")[-1].split("\\")[
+                -1
+            ]  # Get just the filename
+            self._toolbar_manager.update_status(
+                f"Scanning: {file_name} ({progress.files_processed}/{progress.total_files})"
+            )
+        else:
+            self._toolbar_manager.update_status(f"Files processed: {progress.files_processed}")
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Handle key press events for menu bar visibility."""
