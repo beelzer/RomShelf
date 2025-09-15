@@ -75,6 +75,15 @@ class ExtensionHandlerRegistry:
         self.register_handler(ExtensionHandler(".bin", FileHandlingType.DIRECT))
         self.register_handler(ExtensionHandler(".chd", FileHandlingType.DIRECT))
 
+        # Atari 7800 formats
+        self.register_handler(ExtensionHandler(".a78", FileHandlingType.DIRECT))
+
+        # Sega Genesis/Mega Drive formats
+        self.register_handler(ExtensionHandler(".gen", FileHandlingType.DIRECT))
+        self.register_handler(ExtensionHandler(".md", FileHandlingType.DIRECT))
+        self.register_handler(ExtensionHandler(".smd", FileHandlingType.DIRECT))
+        # Note: .bin is already registered for PlayStation 1
+
     def register_handler(self, handler: ExtensionHandler) -> None:
         """Register an extension handler."""
         self._handlers[handler.extension.lower()] = handler

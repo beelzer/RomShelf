@@ -4,16 +4,16 @@ from pathlib import Path
 from typing import Any
 
 from .base_platform import (
-    BasePlatform,
-    PlatformFileTypeSupport,
     PlatformSetting,
     SettingType,
-    TableColumn,
 )
+from .platform_decorators import register_platform
+from .platform_families import HandheldPlatform
 from .platform_utils import PlatformUtils
 
 
-class GameBoyColorPlatform(BasePlatform):
+@register_platform
+class GameBoyColorPlatform(HandheldPlatform):
     """Game Boy Color platform handler."""
 
     def get_platform_name(self) -> str:
@@ -32,21 +32,17 @@ class GameBoyColorPlatform(BasePlatform):
         """Get extensions to look for inside archives."""
         return [".gbc"]
 
-    def get_table_columns(self) -> list[TableColumn]:
-        """Get table column configuration."""
-        return PlatformUtils.get_standard_handheld_columns()
-
-    def get_file_type_support(self) -> PlatformFileTypeSupport:
-        """Get file type support configuration."""
-        return PlatformUtils.get_standard_file_type_support()
+    def get_expected_file_size_range(self) -> tuple[int, int]:
+        """Get expected file size range for GBC ROMs."""
+        return (32 * 1024, 8 * 1024 * 1024)  # 32KB to 8MB
 
     def get_platform_settings(self) -> list[PlatformSetting]:
         """Get Game Boy Color-specific settings."""
-        return [
-            PlatformUtils.create_rom_directories_setting("Game Boy Color"),
-            PlatformUtils.create_scan_subdirectories_setting(),
-            PlatformUtils.create_supported_formats_setting("Game Boy Color", [".gbc"]),
-            PlatformUtils.create_supported_archives_setting(),
+        # Get base settings from parent
+        settings = super().get_platform_settings()
+
+        # Add GBC-specific settings
+        gbc_specific_settings = [
             PlatformSetting(
                 key="backward_compatibility",
                 label="Game Boy Backward Compatibility",
@@ -54,23 +50,10 @@ class GameBoyColorPlatform(BasePlatform):
                 setting_type=SettingType.BOOLEAN,
                 default_value=True,
             ),
-            PlatformUtils.create_header_validation_setting(),
-            PlatformUtils.create_max_file_size_setting(default_mb=8, max_mb=16),
         ]
+
+        return settings + gbc_specific_settings
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
         """Parse ROM information from file."""
         return PlatformUtils.create_base_metadata(file_path)
-
-    def validate_rom(self, file_path: Path) -> bool:
-        """Validate if file is a valid ROM for this platform."""
-        # Check file exists and has correct extension
-        if not PlatformUtils.validate_file_exists_and_extension(file_path, [".gbc"]):
-            return False
-
-        # Basic size check - Game Boy Color ROMs are typically 32KB to 8MB
-        return PlatformUtils.validate_file_size(
-            file_path,
-            min_size=32 * 1024,  # 32KB minimum
-            max_size=8 * 1024 * 1024,  # 8MB maximum
-        )

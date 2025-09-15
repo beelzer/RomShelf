@@ -4,16 +4,17 @@ from pathlib import Path
 from typing import Any
 
 from .base_platform import (
-    BasePlatform,
-    PlatformFileTypeSupport,
     PlatformSetting,
     SettingType,
-    TableColumn,
 )
+from .platform_decorators import register_platform
+from .platform_families import ConsolePlatform
 from .platform_utils import PlatformUtils
+from .validation import N64HeaderValidator
 
 
-class Nintendo64Platform(BasePlatform):
+@register_platform
+class Nintendo64Platform(ConsolePlatform):
     """Nintendo 64 platform handler."""
 
     def get_platform_name(self) -> str:
@@ -32,21 +33,17 @@ class Nintendo64Platform(BasePlatform):
         """Get extensions to look for inside archives."""
         return [".n64", ".z64", ".v64"]
 
-    def get_table_columns(self) -> list[TableColumn]:
-        """Get table column configuration."""
-        return PlatformUtils.get_standard_console_columns()
-
-    def get_file_type_support(self) -> PlatformFileTypeSupport:
-        """Get file type support configuration."""
-        return PlatformUtils.get_standard_file_type_support()
+    def get_expected_file_size_range(self) -> tuple[int, int]:
+        """Get expected file size range for N64 ROMs."""
+        return (1024 * 1024, 64 * 1024 * 1024)  # 1MB to 64MB
 
     def get_platform_settings(self) -> list[PlatformSetting]:
         """Get Nintendo 64-specific settings."""
-        return [
-            PlatformUtils.create_rom_directories_setting("Nintendo 64"),
-            PlatformUtils.create_scan_subdirectories_setting(),
-            PlatformUtils.create_supported_formats_setting("Nintendo 64", [".n64", ".z64", ".v64"]),
-            PlatformUtils.create_supported_archives_setting(),
+        # Get base settings from parent
+        settings = super().get_platform_settings()
+
+        # Add N64-specific settings
+        n64_specific_settings = [
             PlatformSetting(
                 key="preferred_format",
                 label="Preferred ROM Format",
@@ -62,24 +59,17 @@ class Nintendo64Platform(BasePlatform):
                 setting_type=SettingType.BOOLEAN,
                 default_value=True,
             ),
-            PlatformUtils.create_max_file_size_setting(default_mb=64, max_mb=128),
         ]
+
+        return settings + n64_specific_settings
+
+    def _create_validation_chain(self):
+        """Create N64-specific validation chain."""
+        chain = super()._create_validation_chain()
+        # Add N64 header validation
+        chain.add_validator(N64HeaderValidator())
+        return chain
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
         """Parse ROM information from file."""
         return PlatformUtils.create_base_metadata(file_path, file_type=file_path.suffix.upper())
-
-    def validate_rom(self, file_path: Path) -> bool:
-        """Validate if file is a valid ROM for this platform."""
-        # Check file exists and has correct extension
-        if not PlatformUtils.validate_file_exists_and_extension(
-            file_path, [".n64", ".z64", ".v64"]
-        ):
-            return False
-
-        # Basic size check - N64 ROMs are typically 4MB to 64MB
-        return PlatformUtils.validate_file_size(
-            file_path,
-            min_size=1024 * 1024,  # 1MB minimum
-            max_size=64 * 1024 * 1024,  # 64MB maximum
-        )

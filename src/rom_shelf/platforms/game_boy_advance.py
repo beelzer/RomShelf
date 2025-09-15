@@ -4,16 +4,16 @@ from pathlib import Path
 from typing import Any
 
 from .base_platform import (
-    BasePlatform,
-    PlatformFileTypeSupport,
     PlatformSetting,
     SettingType,
-    TableColumn,
 )
+from .platform_decorators import register_platform
+from .platform_families import HandheldPlatform
 from .platform_utils import PlatformUtils
 
 
-class GameBoyAdvancePlatform(BasePlatform):
+@register_platform
+class GameBoyAdvancePlatform(HandheldPlatform):
     """Game Boy Advance platform handler."""
 
     def get_platform_name(self) -> str:
@@ -32,24 +32,17 @@ class GameBoyAdvancePlatform(BasePlatform):
         """Get extensions to look for inside archives."""
         return [".gba"]
 
-    def get_table_columns(self) -> list[TableColumn]:
-        """Get table column configuration."""
-        columns = PlatformUtils.get_standard_handheld_columns()
-        # Insert save_type column before hash
-        columns.insert(-1, TableColumn("save_type", "Save Type", 100))
-        return columns
-
-    def get_file_type_support(self) -> PlatformFileTypeSupport:
-        """Get file type support configuration."""
-        return PlatformUtils.get_standard_file_type_support()
+    def get_expected_file_size_range(self) -> tuple[int, int]:
+        """Get expected file size range for GBA ROMs."""
+        return (128 * 1024, 32 * 1024 * 1024)  # 128KB to 32MB
 
     def get_platform_settings(self) -> list[PlatformSetting]:
         """Get Game Boy Advance-specific settings."""
-        return [
-            PlatformUtils.create_rom_directories_setting("Game Boy Advance"),
-            PlatformUtils.create_scan_subdirectories_setting(),
-            PlatformUtils.create_supported_formats_setting("Game Boy Advance", [".gba"]),
-            PlatformUtils.create_supported_archives_setting(),
+        # Get base settings from parent
+        settings = super().get_platform_settings()
+
+        # Add GBA-specific settings
+        gba_specific_settings = [
             PlatformSetting(
                 key="detect_save_type",
                 label="Auto-detect Save Type",
@@ -64,9 +57,9 @@ class GameBoyAdvancePlatform(BasePlatform):
                 setting_type=SettingType.BOOLEAN,
                 default_value=False,
             ),
-            PlatformUtils.create_header_validation_setting(),
-            PlatformUtils.create_max_file_size_setting(default_mb=32, max_mb=64),
         ]
+
+        return settings + gba_specific_settings
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
         """Parse ROM information from file."""
@@ -82,12 +75,3 @@ class GameBoyAdvancePlatform(BasePlatform):
             pass
 
         return PlatformUtils.create_base_metadata(file_path, save_type=save_type)
-
-    def validate_rom(self, file_path: Path) -> bool:
-        """Validate if file is a valid ROM for this platform."""
-        # Check file exists and has correct extension
-        if not PlatformUtils.validate_file_exists_and_extension(file_path, [".gba"]):
-            return False
-
-        # Basic size check - GBA ROMs are typically 1MB to 32MB
-        return PlatformUtils.validate_file_size(file_path, 1024 * 1024, 32 * 1024 * 1024)

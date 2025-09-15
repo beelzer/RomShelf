@@ -143,6 +143,10 @@ class BasePlatform(ABC):
         """Validate if file is a valid ROM for this platform."""
         pass
 
+    def get_validation_failure_reason(self) -> str:
+        """Get the reason for validation failure (optional)."""
+        return "ROM validation failed"
+
     def create_rom_entry(
         self,
         file_path: Path,

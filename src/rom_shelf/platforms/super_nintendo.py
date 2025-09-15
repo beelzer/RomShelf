@@ -4,16 +4,16 @@ from pathlib import Path
 from typing import Any
 
 from .base_platform import (
-    BasePlatform,
-    PlatformFileTypeSupport,
     PlatformSetting,
     SettingType,
-    TableColumn,
 )
+from .platform_decorators import register_platform
+from .platform_families import ConsolePlatform
 from .platform_utils import PlatformUtils
 
 
-class SuperNintendoPlatform(BasePlatform):
+@register_platform
+class SuperNintendoPlatform(ConsolePlatform):
     """Super Nintendo Entertainment System platform handler."""
 
     def get_platform_name(self) -> str:
@@ -32,30 +32,17 @@ class SuperNintendoPlatform(BasePlatform):
         """Get extensions to look for inside archives."""
         return [".sfc", ".smc"]
 
-    def get_table_columns(self) -> list[TableColumn]:
-        """Get table column configuration."""
-        return [
-            TableColumn("name", "Name", 300),  # Will stretch, width is minimum
-            TableColumn("region", "Region", 100),
-            TableColumn("language", "Language", 100),
-            TableColumn("version", "Version", 90),
-            TableColumn("size", "Size", 100),
-            TableColumn("dump_status", "Status", 80),
-            TableColumn("file_type", "Type", 80),
-            TableColumn("hash", "Hash", 160),
-        ]
-
-    def get_file_type_support(self) -> PlatformFileTypeSupport:
-        """Get file type support configuration."""
-        return PlatformUtils.get_standard_file_type_support()
+    def get_expected_file_size_range(self) -> tuple[int, int]:
+        """Get expected file size range for SNES ROMs."""
+        return (128 * 1024, 6 * 1024 * 1024)  # 128KB to 6MB
 
     def get_platform_settings(self) -> list[PlatformSetting]:
         """Get Super Nintendo-specific settings."""
-        return [
-            PlatformUtils.create_rom_directories_setting("Super Nintendo"),
-            PlatformUtils.create_scan_subdirectories_setting(),
-            PlatformUtils.create_supported_formats_setting("Super Nintendo", [".sfc", ".smc"]),
-            PlatformUtils.create_supported_archives_setting(),
+        # Get base settings from parent
+        settings = super().get_platform_settings()
+
+        # Add SNES-specific settings
+        snes_specific_settings = [
             PlatformSetting(
                 key="show_dump_status",
                 label="Show Dump Status",
@@ -78,9 +65,9 @@ class SuperNintendoPlatform(BasePlatform):
                 setting_type=SettingType.BOOLEAN,
                 default_value=False,
             ),
-            PlatformUtils.create_header_validation_setting(),
-            PlatformUtils.create_max_file_size_setting(default_mb=6, max_mb=12),
         ]
+
+        return settings + snes_specific_settings
 
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
         """Parse ROM information from file."""
@@ -104,16 +91,3 @@ class SuperNintendoPlatform(BasePlatform):
         )
 
         return metadata
-
-    def validate_rom(self, file_path: Path) -> bool:
-        """Validate if file is a valid ROM for this platform."""
-        # Check file exists and has correct extension
-        if not PlatformUtils.validate_file_exists_and_extension(file_path, [".sfc", ".smc"]):
-            return False
-
-        # Basic size check - SNES ROMs are typically 256KB to 6MB
-        return PlatformUtils.validate_file_size(
-            file_path,
-            min_size=256 * 1024,  # 256KB minimum
-            max_size=6 * 1024 * 1024,  # 6MB maximum
-        )

@@ -1,13 +1,11 @@
 """Platform registry for managing all supported platforms."""
 
+import importlib
+import pkgutil
+from pathlib import Path
+
 from .base_platform import BasePlatform
-from .game_boy import GameBoyPlatform
-from .game_boy_advance import GameBoyAdvancePlatform
-from .game_boy_color import GameBoyColorPlatform
-from .nintendo_64 import Nintendo64Platform
-from .nintendo_gamecube import NintendoGameCubePlatform
-from .playstation_1 import PlayStation1Platform
-from .super_nintendo import SuperNintendoPlatform
+from .platform_decorators import get_discovered_platforms
 
 
 class PlatformRegistry:
@@ -19,19 +17,62 @@ class PlatformRegistry:
         self._initialize_platforms()
 
     def _initialize_platforms(self) -> None:
-        """Initialize all supported platforms."""
-        platforms = [
-            Nintendo64Platform(),
-            NintendoGameCubePlatform(),
-            GameBoyPlatform(),
-            GameBoyColorPlatform(),
-            GameBoyAdvancePlatform(),
-            SuperNintendoPlatform(),
-            PlayStation1Platform(),
-        ]
+        """Initialize all supported platforms using auto-discovery."""
+        # Auto-discover platforms by importing all platform modules
+        self._auto_discover_platforms()
 
-        for platform in platforms:
-            self._platforms[platform.platform_id] = platform
+        # Create instances of all discovered platforms
+        discovered_platform_classes = get_discovered_platforms()
+
+        for platform_id, platform_class in discovered_platform_classes.items():
+            try:
+                platform_instance = platform_class()
+                self._platforms[platform_id] = platform_instance
+            except Exception as e:
+                print(f"Warning: Failed to initialize platform '{platform_id}': {e}")
+
+        if not self._platforms:
+            raise RuntimeError(
+                "No platforms were discovered. Ensure platform modules use @register_platform decorator."
+            )
+
+    def _auto_discover_platforms(self) -> None:
+        """Auto-discover platform modules by importing all .py files in the platforms package."""
+        platforms_dir = Path(__file__).parent
+
+        for module_info in pkgutil.iter_modules([str(platforms_dir)]):
+            module_name = module_info.name
+
+            # Skip utility modules and the registry itself
+            if module_name in [
+                "platform_registry",
+                "platform_utils",
+                "platform_decorators",
+                "validation",
+                "platform_families",
+                "base_platform",
+                "__init__",
+            ]:
+                continue
+
+            try:
+                # Import the module to trigger @register_platform decorators
+                importlib.import_module(f".{module_name}", package=__package__)
+            except ImportError as e:
+                print(f"Warning: Failed to import platform module '{module_name}': {e}")
+
+    def register_platform_class(self, platform_class: type[BasePlatform]) -> None:
+        """Manually register a platform class (alternative to decorator)."""
+        try:
+            platform_instance = platform_class()
+            platform_id = platform_instance.platform_id
+
+            if platform_id in self._platforms:
+                print(f"Warning: Platform '{platform_id}' is already registered, replacing...")
+
+            self._platforms[platform_id] = platform_instance
+        except Exception as e:
+            print(f"Error registering platform class {platform_class.__name__}: {e}")
 
     def get_platform(self, platform_id: str) -> BasePlatform | None:
         """Get a platform by its ID."""
