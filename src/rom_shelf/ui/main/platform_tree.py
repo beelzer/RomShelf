@@ -3,7 +3,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QWidget
 
-from ...platforms.platform_registry import platform_registry
+from ...platforms.core.platform_registry import platform_registry
 
 
 class PlatformTreeWidget(QTreeWidget):

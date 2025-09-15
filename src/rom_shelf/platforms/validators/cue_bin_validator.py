@@ -1,10 +1,10 @@
-"""Multi-file ROM validation (CUE/BIN, etc.)."""
+"""CUE/BIN file format validator for PlayStation platforms."""
 
 from pathlib import Path
 
 
-class MultiFileValidator:
-    """Handles validation of multi-file ROM formats."""
+class CueBinValidator:
+    """Handles validation of CUE/BIN multi-file ROM formats."""
 
     def validate_cue_bin(self, cue_path: Path) -> bool:
         """Validate a .cue file and its associated .bin files."""

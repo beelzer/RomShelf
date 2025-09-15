@@ -4,8 +4,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHeaderView, QTableView, QWidget
 
 from ...models.rom_table_model import ROMTableModel
-from ...platforms.base_platform import TableColumn
-from ...platforms.platform_registry import platform_registry
+from ...platforms.core.base_platform import TableColumn
+from ...platforms.core.platform_registry import platform_registry
 
 
 class ROMTableView(QTableView):

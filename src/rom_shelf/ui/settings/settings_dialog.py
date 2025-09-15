@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.settings import SettingsManager
-from ...platforms.platform_registry import platform_registry
+from ...platforms.core.platform_registry import platform_registry
 from .interface_page import InterfacePage
 from .platform_specific_page import PlatformSpecificPage
 from .platforms_page import PlatformsPage

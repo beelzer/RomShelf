@@ -36,57 +36,23 @@ class ExtensionHandlerRegistry:
     def __init__(self) -> None:
         """Initialize the registry with default handlers."""
         self._handlers: dict[str, ExtensionHandler] = {}
-        self._initialize_default_handlers()
+        self._initialize_archive_handlers()
 
-    def _initialize_default_handlers(self) -> None:
-        """Set up default extension handlers."""
-        # Archive formats
+    def _initialize_archive_handlers(self) -> None:
+        """Set up archive format handlers (platform-agnostic)."""
+        # Archive formats - these are platform-agnostic
         self.register_handler(ExtensionHandler(".zip", FileHandlingType.ARCHIVE))
         self.register_handler(ExtensionHandler(".7z", FileHandlingType.ARCHIVE))
         self.register_handler(ExtensionHandler(".rar", FileHandlingType.ARCHIVE))
 
-        # Nintendo 64 formats
-        self.register_handler(ExtensionHandler(".n64", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".z64", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".v64", FileHandlingType.DIRECT))
-
-        # Game Boy formats
-        self.register_handler(ExtensionHandler(".gb", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".gbc", FileHandlingType.DIRECT))
-
-        # Game Boy Advance formats
-        self.register_handler(ExtensionHandler(".gba", FileHandlingType.DIRECT))
-
-        # Super Nintendo formats
-        self.register_handler(ExtensionHandler(".sfc", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".smc", FileHandlingType.DIRECT))
-
-        # GameCube formats
-        self.register_handler(ExtensionHandler(".rvz", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".gcm", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".wbfs", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".ciso", FileHandlingType.DIRECT))
-
-        # PlayStation 1 formats
-        self.register_handler(ExtensionHandler(".iso", FileHandlingType.DIRECT))
-        self.register_handler(
-            ExtensionHandler(".cue", FileHandlingType.MULTI_FILE, associated_extensions=[".bin"])
-        )
-        self.register_handler(ExtensionHandler(".bin", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".chd", FileHandlingType.DIRECT))
-
-        # Atari 7800 formats
-        self.register_handler(ExtensionHandler(".a78", FileHandlingType.DIRECT))
-
-        # Sega Genesis/Mega Drive formats
-        self.register_handler(ExtensionHandler(".gen", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".md", FileHandlingType.DIRECT))
-        self.register_handler(ExtensionHandler(".smd", FileHandlingType.DIRECT))
-        # Note: .bin is already registered for PlayStation 1
-
     def register_handler(self, handler: ExtensionHandler) -> None:
         """Register an extension handler."""
         self._handlers[handler.extension.lower()] = handler
+
+    def register_platform_extensions(self, platform) -> None:
+        """Register extensions for a platform instance."""
+        if hasattr(platform, "register_extensions"):
+            platform.register_extensions(self)
 
     def get_handler(self, extension: str) -> ExtensionHandler | None:
         """Get handler for an extension."""

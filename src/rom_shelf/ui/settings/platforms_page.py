@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.settings import Settings
-from ...platforms.platform_registry import PlatformRegistry
+from ...platforms.core.platform_registry import PlatformRegistry
 from ..themes.themed_widget import ThemeHelper
 from .settings_base import SettingsPage, normalize_path_display
 

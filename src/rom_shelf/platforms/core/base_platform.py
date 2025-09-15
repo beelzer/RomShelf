@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from ..models.rom_entry import ROMEntry
+from ...models.rom_entry import ROMEntry
 
 
 class SettingType(Enum):
@@ -114,6 +114,11 @@ class BasePlatform(ABC):
         pass
 
     @abstractmethod
+    def register_extensions(self, registry) -> None:
+        """Register platform-specific extension handlers."""
+        pass
+
+    @abstractmethod
     def get_archive_content_extensions(self) -> list[str]:
         """Get extensions to look for inside archives."""
         pass
@@ -137,6 +142,21 @@ class BasePlatform(ABC):
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
         """Parse ROM information from file."""
         pass
+
+    def find_multi_file_primary(self, file_path: Path) -> Path | None:
+        """Find the primary file for a multi-file ROM set."""
+        # Default implementation: no multi-file support
+        return None
+
+    def get_related_files(self, primary_file: Path) -> list[Path]:
+        """Get all files that are part of this multi-file ROM."""
+        # Default implementation: only the primary file
+        return [primary_file]
+
+    def is_multi_file_primary(self, file_path: Path) -> bool:
+        """Check if file is a primary file in a multi-file set."""
+        # Default implementation: no multi-file support
+        return False
 
     @abstractmethod
     def validate_rom(self, file_path: Path) -> bool:
@@ -165,7 +185,7 @@ class BasePlatform(ABC):
         original_name = metadata.get("name", file_path.stem)
 
         # Clean the display name and extract additional metadata
-        from ..utils.name_cleaner import get_display_name_and_metadata
+        from ...utils.name_cleaner import get_display_name_and_metadata
 
         display_name, extracted_metadata = get_display_name_and_metadata(original_name)
 

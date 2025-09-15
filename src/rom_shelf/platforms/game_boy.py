@@ -3,14 +3,15 @@
 from pathlib import Path
 from typing import Any
 
-from .base_platform import (
+from ..core.extension_handler import ExtensionHandler, FileHandlingType
+from .core.base_platform import (
     PlatformSetting,
     SettingType,
 )
-from .platform_decorators import register_platform
-from .platform_families import HandheldPlatform
-from .platform_utils import PlatformUtils
-from .validation import GameBoyHeaderValidator
+from .core.platform_decorators import register_platform
+from .core.platform_families import HandheldPlatform
+from .core.platform_utils import PlatformUtils
+from .core.validation import GameBoyHeaderValidator
 
 
 @register_platform
@@ -32,6 +33,10 @@ class GameBoyPlatform(HandheldPlatform):
     def get_archive_content_extensions(self) -> list[str]:
         """Get extensions to look for inside archives."""
         return [".gb"]
+
+    def register_extensions(self, registry) -> None:
+        """Register Game Boy extension handlers."""
+        registry.register_handler(ExtensionHandler(".gb", FileHandlingType.DIRECT))
 
     def get_expected_file_size_range(self) -> tuple[int, int]:
         """Get expected file size range for Game Boy ROMs."""

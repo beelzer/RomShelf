@@ -28,6 +28,13 @@ class PlatformRegistry:
             try:
                 platform_instance = platform_class()
                 self._platforms[platform_id] = platform_instance
+
+                # Register platform extensions
+                self._register_platform_extensions(platform_instance)
+
+                # Register platform settings defaults
+                self._register_platform_settings(platform_instance)
+
             except Exception as e:
                 print(f"Warning: Failed to initialize platform '{platform_id}': {e}")
 
@@ -38,7 +45,7 @@ class PlatformRegistry:
 
     def _auto_discover_platforms(self) -> None:
         """Auto-discover platform modules by importing all .py files in the platforms package."""
-        platforms_dir = Path(__file__).parent
+        platforms_dir = Path(__file__).parent.parent  # Go up from core/ to platforms/
 
         for module_info in pkgutil.iter_modules([str(platforms_dir)]):
             module_name = module_info.name
@@ -57,7 +64,11 @@ class PlatformRegistry:
 
             try:
                 # Import the module to trigger @register_platform decorators
-                importlib.import_module(f".{module_name}", package=__package__)
+                # Import from parent package since we're in core/ subdirectory
+                parent_package = ".".join(
+                    __package__.split(".")[:-1]
+                )  # Remove 'core' from package path
+                importlib.import_module(f".{module_name}", package=parent_package)
             except ImportError as e:
                 print(f"Warning: Failed to import platform module '{module_name}': {e}")
 
@@ -100,6 +111,30 @@ class PlatformRegistry:
     def get_platform_names(self) -> list[str]:
         """Get all platform names."""
         return [platform.name for platform in self._platforms.values()]
+
+    def _register_platform_extensions(self, platform_instance: BasePlatform) -> None:
+        """Register platform extensions with the extension registry."""
+        try:
+            from ...core.extension_handler import extension_registry
+
+            extension_registry.register_platform_extensions(platform_instance)
+        except Exception as e:
+            print(
+                f"Warning: Failed to register extensions for {platform_instance.platform_id}: {e}"
+            )
+
+    def _register_platform_settings(self, platform_instance: BasePlatform) -> None:
+        """Register platform settings with the global settings."""
+        try:
+            from ...core.settings import get_settings
+
+            settings = get_settings()
+            platform_settings_def = platform_instance.get_platform_settings()
+            settings.register_platform_defaults(
+                platform_instance.platform_id, platform_settings_def
+            )
+        except Exception as e:
+            print(f"Warning: Failed to register settings for {platform_instance.platform_id}: {e}")
 
 
 # Global platform registry instance

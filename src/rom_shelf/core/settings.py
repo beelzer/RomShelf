@@ -65,30 +65,20 @@ class Settings:
 
     def _initialize_platform_defaults(self) -> None:
         """Initialize platform settings with defaults from platform implementations."""
-        try:
-            # Import here to avoid circular imports
-            from ..platforms.platform_registry import PlatformRegistry
+        # This method is now a no-op - platforms will register themselves
+        # using register_platform_defaults() when they are loaded
+        pass
 
-            registry = PlatformRegistry()
+    def register_platform_defaults(self, platform_id: str, platform_settings_def: list) -> None:
+        """Register default settings for a platform."""
+        # Always initialize if platform doesn't exist or is empty
+        if platform_id not in self.platform_settings or not self.platform_settings[platform_id]:
+            # Create defaults dict from platform settings definition
+            defaults = {}
+            for setting in platform_settings_def:
+                defaults[setting.key] = setting.default_value
 
-            for platform in registry.get_all_platforms():
-                platform_id = platform.platform_id
-
-                # Always initialize if platform doesn't exist or is empty
-                if (
-                    platform_id not in self.platform_settings
-                    or not self.platform_settings[platform_id]
-                ):
-                    # Get platform-specific settings and create defaults dict
-                    platform_settings_def = platform.get_platform_settings()
-                    defaults = {}
-                    for setting in platform_settings_def:
-                        defaults[setting.key] = setting.default_value
-
-                    self.platform_settings[platform_id] = defaults
-        except Exception:
-            # If something goes wrong, just skip initialization
-            pass
+            self.platform_settings[platform_id] = defaults
 
     def save(self, file_path: Path) -> None:
         """Save settings to file."""
@@ -133,3 +123,21 @@ class SettingsManager:
             if hasattr(self._settings, key):
                 setattr(self._settings, key, value)
         self.save()
+
+
+# Global settings instance
+_global_settings: Settings | None = None
+
+
+def get_settings() -> Settings:
+    """Get the global settings instance."""
+    global _global_settings
+    if _global_settings is None:
+        _global_settings = Settings()
+    return _global_settings
+
+
+def set_settings(settings: Settings) -> None:
+    """Set the global settings instance."""
+    global _global_settings
+    _global_settings = settings

@@ -3,18 +3,25 @@
 from pathlib import Path
 from typing import Any
 
-from .base_platform import (
+from ..core.extension_handler import ExtensionHandler, FileHandlingType
+from .core.base_platform import (
     PlatformSetting,
     SettingType,
 )
-from .platform_decorators import register_platform
-from .platform_families import DiscBasedPlatform
-from .platform_utils import PlatformUtils
+from .core.platform_decorators import register_platform
+from .core.platform_families import DiscBasedPlatform
+from .core.platform_utils import PlatformUtils
+from .validators.cue_bin_validator import CueBinValidator
 
 
 @register_platform
 class PlayStation1Platform(DiscBasedPlatform):
     """PlayStation 1 platform handler."""
+
+    def __init__(self) -> None:
+        """Initialize PlayStation 1 platform."""
+        super().__init__()
+        self._cue_bin_validator = CueBinValidator()
 
     def get_platform_name(self) -> str:
         """Get the display name of the platform."""
@@ -31,6 +38,15 @@ class PlayStation1Platform(DiscBasedPlatform):
     def get_archive_content_extensions(self) -> list[str]:
         """Get extensions to look for inside archives."""
         return [".iso", ".cue", ".bin", ".chd"]
+
+    def register_extensions(self, registry) -> None:
+        """Register PlayStation 1 extension handlers."""
+        registry.register_handler(ExtensionHandler(".iso", FileHandlingType.DIRECT))
+        registry.register_handler(ExtensionHandler(".bin", FileHandlingType.DIRECT))
+        registry.register_handler(
+            ExtensionHandler(".cue", FileHandlingType.MULTI_FILE, associated_extensions=[".bin"])
+        )
+        registry.register_handler(ExtensionHandler(".chd", FileHandlingType.DIRECT))
 
     def get_expected_file_size_range(self) -> tuple[int, int]:
         """Get expected file size range for PlayStation 1 games."""
@@ -69,3 +85,15 @@ class PlayStation1Platform(DiscBasedPlatform):
     def parse_rom_info(self, file_path: Path) -> dict[str, Any]:
         """Parse ROM information from file (uses parent implementation)."""
         return super().parse_rom_info(file_path)
+
+    def find_multi_file_primary(self, file_path: Path) -> Path | None:
+        """Find the primary file for a multi-file ROM set."""
+        return self._cue_bin_validator.find_multi_file_primary(file_path)
+
+    def get_related_files(self, primary_file: Path) -> list[Path]:
+        """Get all files that are part of this multi-file ROM."""
+        return self._cue_bin_validator.get_related_files(primary_file)
+
+    def is_multi_file_primary(self, file_path: Path) -> bool:
+        """Check if file is a primary file in a multi-file set."""
+        return self._cue_bin_validator.is_multi_file_primary(file_path)

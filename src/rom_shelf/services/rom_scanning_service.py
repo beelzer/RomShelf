@@ -10,10 +10,11 @@ from typing import Any
 
 from ..core.archive_processor import ArchiveProcessor
 from ..core.extension_handler import FileHandlingType, extension_registry
-from ..core.multi_file_validator import MultiFileValidator
+
+# TODO: Replace with platform-specific multi-file handling
 from ..core.rom_database import FingerprintStatus, get_rom_database
 from ..models.rom_entry import ROMEntry
-from ..platforms.base_platform import BasePlatform
+from ..platforms.core.base_platform import BasePlatform
 
 
 class ScanProgress:
@@ -49,7 +50,7 @@ class ROMScanningService:
     def __init__(self) -> None:
         """Initialize the ROM scanning service."""
         self._archive_processor = ArchiveProcessor()
-        self._multi_file_validator = MultiFileValidator()
+        # TODO: Replace with platform-specific multi-file handling
         self._rom_database = get_rom_database()
         self._is_scanning = False
         self._should_stop = False
@@ -344,13 +345,9 @@ class ROMScanningService:
         self, file_path: Path, platform: BasePlatform, supported_formats: list[str]
     ) -> list[ROMEntry]:
         """Process a multi-part ROM file."""
-        # Validate multi-part file set
-        if not self._multi_file_validator.validate_multi_part_set(file_path):
-            return []
-
-        # Only process the first part of multi-part ROMs
-        if not self._multi_file_validator.is_first_part(file_path):
-            return []
+        # TODO: Replace with platform-specific multi-file validation
+        # For now, process all files as they are
+        pass
 
         if platform.validate_file(file_path):
             entry = self._create_rom_entry(file_path, platform)

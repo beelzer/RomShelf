@@ -3,14 +3,15 @@
 from pathlib import Path
 from typing import Any
 
-from .base_platform import (
+from ..core.extension_handler import ExtensionHandler, FileHandlingType
+from .core.base_platform import (
     PlatformSetting,
     SettingType,
 )
-from .platform_decorators import register_platform
-from .platform_families import ConsolePlatform
-from .platform_utils import PlatformUtils
-from .validation import N64HeaderValidator
+from .core.platform_decorators import register_platform
+from .core.platform_families import ConsolePlatform
+from .core.platform_utils import PlatformUtils
+from .core.validation import N64HeaderValidator
 
 
 @register_platform
@@ -32,6 +33,12 @@ class Nintendo64Platform(ConsolePlatform):
     def get_archive_content_extensions(self) -> list[str]:
         """Get extensions to look for inside archives."""
         return [".n64", ".z64", ".v64"]
+
+    def register_extensions(self, registry) -> None:
+        """Register Nintendo 64 extension handlers."""
+        registry.register_handler(ExtensionHandler(".n64", FileHandlingType.DIRECT))
+        registry.register_handler(ExtensionHandler(".z64", FileHandlingType.DIRECT))
+        registry.register_handler(ExtensionHandler(".v64", FileHandlingType.DIRECT))
 
     def get_expected_file_size_range(self) -> tuple[int, int]:
         """Get expected file size range for N64 ROMs."""

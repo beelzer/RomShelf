@@ -3,13 +3,14 @@
 from pathlib import Path
 from typing import Any
 
-from .base_platform import (
+from ..core.extension_handler import ExtensionHandler, FileHandlingType
+from .core.base_platform import (
     PlatformSetting,
     SettingType,
 )
-from .platform_decorators import register_platform
-from .platform_families import ConsolePlatform
-from .platform_utils import PlatformUtils
+from .core.platform_decorators import register_platform
+from .core.platform_families import ConsolePlatform
+from .core.platform_utils import PlatformUtils
 
 
 @register_platform
@@ -31,6 +32,11 @@ class SuperNintendoPlatform(ConsolePlatform):
     def get_archive_content_extensions(self) -> list[str]:
         """Get extensions to look for inside archives."""
         return [".sfc", ".smc"]
+
+    def register_extensions(self, registry) -> None:
+        """Register Super Nintendo extension handlers."""
+        registry.register_handler(ExtensionHandler(".sfc", FileHandlingType.DIRECT))
+        registry.register_handler(ExtensionHandler(".smc", FileHandlingType.DIRECT))
 
     def get_expected_file_size_range(self) -> tuple[int, int]:
         """Get expected file size range for SNES ROMs."""

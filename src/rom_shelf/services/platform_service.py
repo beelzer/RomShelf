@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import Any
 
-from ..platforms.base_platform import BasePlatform, PlatformSetting, TableColumn
-from ..platforms.platform_registry import platform_registry
+from ..platforms.core.base_platform import BasePlatform, PlatformSetting, TableColumn
+from ..platforms.core.platform_registry import platform_registry
 
 
 class PlatformService:

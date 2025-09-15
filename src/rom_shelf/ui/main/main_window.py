@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 
 from ...core.rom_scanner import ROMScannerThread
 from ...models.rom_table_model import ROMTableModel
-from ...platforms.platform_registry import platform_registry
+from ...platforms.core.platform_registry import platform_registry
 from ...services import ServiceContainer
 from ..settings import SettingsDialog
 from ..themes import get_theme_manager

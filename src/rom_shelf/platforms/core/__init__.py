@@ -1,21 +1,19 @@
-"""Platform-specific ROM handling modules."""
+"""Platform core infrastructure."""
 
-# Import core platform infrastructure
-from . import core
-from .core.base_platform import BasePlatform, PlatformSetting, SettingType, TableColumn
-from .core.platform_decorators import register_platform
-from .core.platform_families import (
+from .base_platform import BasePlatform, PlatformSetting, SettingType, TableColumn
+from .platform_decorators import register_platform
+from .platform_families import (
     CartridgeBasedPlatform,
     ConsolePlatform,
     DiscBasedPlatform,
     HandheldPlatform,
     PlatformFamily,
 )
-from .core.platform_registry import platform_registry
-from .core.validation import ROMValidator, ValidationChain
+from .platform_registry import platform_registry
+from .platform_utils import PlatformUtils
+from .validation import ROMValidator, ValidationChain
 
 __all__ = [
-    "core",
     "BasePlatform",
     "PlatformSetting",
     "SettingType",
@@ -27,6 +25,7 @@ __all__ = [
     "HandheldPlatform",
     "PlatformFamily",
     "platform_registry",
+    "PlatformUtils",
     "ValidationChain",
     "ROMValidator",
 ]

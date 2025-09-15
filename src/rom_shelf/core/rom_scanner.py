@@ -9,10 +9,11 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, Signal
 
 from ..models.rom_entry import ROMEntry
-from ..platforms.base_platform import BasePlatform
+from ..platforms.core.base_platform import BasePlatform
 from .archive_processor import ArchiveProcessor
 from .extension_handler import FileHandlingType, extension_registry
-from .multi_file_validator import MultiFileValidator
+
+# Removed multi_file_validator - now handled by platforms
 from .rom_database import FingerprintStatus, get_rom_database
 
 
@@ -40,7 +41,7 @@ class ROMScanner(QObject):
         """Initialize the ROM scanner."""
         super().__init__()
         self._archive_processor = ArchiveProcessor()
-        self._multi_file_validator = MultiFileValidator()
+        # Multi-file validation now handled by platforms
         self._rom_database = get_rom_database()
         self._is_scanning = False
         self._should_stop = False
@@ -440,13 +441,19 @@ class ROMScanner(QObject):
         """Process a multi-file ROM."""
         entries: list[ROMEntry] = []
 
-        # Check if this is a primary file for a multi-file set
-        primary_file = self._multi_file_validator.find_multi_file_primary(file_path)
+        # Check if this is a primary file for a multi-file set using platforms
+        primary_file = None
+        related_files = [file_path]
+
+        for platform in platforms:
+            primary = platform.find_multi_file_primary(file_path)
+            if primary:
+                primary_file = primary
+                related_files = platform.get_related_files(primary_file)
+                break
+
         if not primary_file:
             return entries
-
-        # Get all related files
-        related_files = self._multi_file_validator.get_related_files(primary_file)
 
         # Mark all related files as processed
         for related_file in related_files:

@@ -5,7 +5,7 @@ from typing import Any
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt
 
 from ..core.rom_database import get_rom_database
-from ..platforms.base_platform import TableColumn
+from ..platforms.core.base_platform import TableColumn
 from ..utils.flag_icons import FlagIcons
 from .rom_entry import ROMEntry
 
@@ -219,7 +219,7 @@ class ROMTableModel(QAbstractTableModel):
             return True
 
         # Search in platform name
-        from ..platforms.platform_registry import platform_registry
+        from ..platforms.core.platform_registry import platform_registry
 
         platform = platform_registry.get_platform(entry.platform_id)
         if platform and search_text in platform.name.lower():
