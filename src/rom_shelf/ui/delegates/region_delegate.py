@@ -59,9 +59,9 @@ class RegionDelegate(QStyledItemDelegate):
         else:
             regions = [region_str.strip()]
 
-        # Calculate positions
+        # Calculate positions with proper padding to match text cells
         rect = option.rect
-        x = rect.x() + 4
+        x = rect.x() + 8  # Match standard text padding
         y = rect.y() + (rect.height() - 14) // 2  # Center vertically
 
         # Draw flag icons and store their positions
