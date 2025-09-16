@@ -203,24 +203,62 @@ class ROMTableView(QTableView):
         system = platform.system()
         try:
             if system == "Windows":
-                # Windows: Use explorer with /select to highlight the file
-                subprocess.run(["explorer", "/select,", str(file_path)])
+                # Windows: Use SHOpenFolderAndSelectItems via ctypes to respect default file manager
+                import ctypes
+
+                try:
+                    # Use Windows Shell API to open folder and select item
+                    # This respects the system's default file manager
+                    shell32 = ctypes.windll.shell32
+
+                    # Convert path to Windows format
+                    file_path_str = str(file_path).replace("/", "\\")
+
+                    # SHOpenFolderAndSelectItems would be ideal but it's complex to call
+                    # Instead, use ShellExecute to open the parent folder
+                    # This will use the default file manager
+                    result = shell32.ShellExecuteW(
+                        None,
+                        "open",
+                        str(file_path.parent),
+                        None,
+                        None,
+                        1,  # SW_SHOWNORMAL
+                    )
+
+                    if result <= 32:  # Error occurred
+                        # Fallback to explorer if shell execute fails
+                        subprocess.run(["explorer", "/select,", str(file_path)])
+                except Exception:
+                    # Final fallback to explorer
+                    subprocess.run(["explorer", "/select,", str(file_path)])
             elif system == "Darwin":
-                # macOS: Use open -R to reveal in Finder
-                subprocess.run(["open", "-R", str(file_path)])
+                # macOS: Use open with the parent directory
+                # This respects the user's default file manager (Finder, Path Finder, etc.)
+                subprocess.run(["open", str(file_path.parent)])
             else:
-                # Linux: Try to open the parent directory
-                # Different file managers have different commands
+                # Linux: Use xdg-open which respects the user's default file manager
+                # xdg-open will use whatever is configured in the desktop environment
                 parent_dir = file_path.parent
+
+                # First try xdg-open which respects user preferences
                 if subprocess.run(["which", "xdg-open"], capture_output=True).returncode == 0:
+                    # Open the parent directory with the default file manager
                     subprocess.run(["xdg-open", str(parent_dir)])
-                elif subprocess.run(["which", "nautilus"], capture_output=True).returncode == 0:
-                    subprocess.run(["nautilus", "--select", str(file_path)])
-                elif subprocess.run(["which", "dolphin"], capture_output=True).returncode == 0:
-                    subprocess.run(["dolphin", "--select", str(file_path)])
                 else:
-                    # Fallback: just open the parent directory
-                    subprocess.run(["xdg-open", str(parent_dir)])
+                    # Very rare case where xdg-open isn't available
+                    # Try some common file managers
+                    if subprocess.run(["which", "nautilus"], capture_output=True).returncode == 0:
+                        subprocess.run(["nautilus", str(parent_dir)])
+                    elif subprocess.run(["which", "dolphin"], capture_output=True).returncode == 0:
+                        subprocess.run(["dolphin", str(parent_dir)])
+                    elif subprocess.run(["which", "thunar"], capture_output=True).returncode == 0:
+                        subprocess.run(["thunar", str(parent_dir)])
+                    else:
+                        # Last resort: try to open with Python's webbrowser module
+                        import webbrowser
+
+                        webbrowser.open(str(parent_dir))
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not open file location:\n{e}")
 
