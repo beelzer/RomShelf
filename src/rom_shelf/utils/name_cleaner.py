@@ -92,19 +92,97 @@ def extract_rom_metadata(original_name: str) -> dict[str, Any]:
         metadata["version"] = f"Rev {rev_match.group(1)}"
 
     # Extract language information
-    language_match = re.search(r"\(([A-Za-z]{2}(?:,[A-Za-z]{2})*)\)", original_name)
-    if language_match:
-        languages = language_match.group(1)
-        # Validate that these look like language codes (2-letter codes)
-        language_codes = [lang.strip() for lang in languages.split(",")]
-        valid_codes = []
-        for code in language_codes:
-            # Common language codes pattern: exactly 2 letters
-            if re.match(r"^[A-Za-z]{2}$", code):
-                valid_codes.append(code)
+    # Define known language codes to avoid confusion with region codes
+    known_language_codes = {
+        "En",
+        "Fr",
+        "De",
+        "Es",
+        "It",
+        "Pt",
+        "Ja",
+        "Ko",
+        "Zh",
+        "Ru",
+        "Nl",
+        "Sv",
+        "No",
+        "Da",
+        "Fi",
+        "Pl",
+        "Ar",
+        "He",
+        "Tr",
+        "Gr",
+        "Hu",
+        "Cs",
+        "Ro",
+        "Ca",
+        "Eu",
+        "Ga",
+        "Cy",
+        "Is",
+        "Hr",
+        "Sr",
+        "Sk",
+        "Sl",
+        "Lt",
+        "Lv",
+        "Et",
+        "Bg",
+        "Uk",
+        "Be",
+        "Mk",
+        "Sq",
+        "Vi",
+        "Th",
+        "Id",
+        "Ms",
+        "Hi",
+        "Ta",
+        "Te",
+        "Bn",
+        "Ur",
+        "Fa",
+    }
 
-        if valid_codes:
-            metadata["language"] = ",".join(valid_codes)
+    # Look for language patterns in parentheses
+    # Common patterns: (En), (En,Fr), (En+Fr), (En/Fr), (Multi-5), etc.
+    languages_found = set()
+
+    # Pattern 1: Look for explicit language codes in parentheses
+    # e.g., (En), (En,Fr), (En+Fr), (En/Fr)
+    lang_pattern = r"\(([A-Za-z]{2}(?:[,+/][A-Za-z]{2})*)\)"
+    for match in re.finditer(lang_pattern, original_name):
+        lang_str = match.group(1)
+        # Split by common separators
+        for separator in [",", "+", "/"]:
+            if separator in lang_str:
+                codes = [code.strip().capitalize() for code in lang_str.split(separator)]
+                # Only add if ALL codes are known language codes
+                if all(code in known_language_codes for code in codes):
+                    languages_found.update(codes)
+                    break
+        else:
+            # Single language code
+            code = lang_str.capitalize()
+            if code in known_language_codes:
+                languages_found.add(code)
+
+    # Pattern 2: Look for Multi-language indicators
+    # e.g., (Multi-3), (M5), (Multi)
+    multi_match = re.search(r"\((Multi(?:-\d+)?|M\d+)\)", original_name, re.IGNORECASE)
+    if multi_match:
+        # For multi-language ROMs, try to extract specific languages from the name
+        # or mark it as "Multi"
+        if not languages_found:
+            metadata["language"] = "Multi"
+        else:
+            # We found specific languages, use those
+            metadata["language"] = ",".join(sorted(languages_found))
+    elif languages_found:
+        # Sort languages for consistency
+        metadata["language"] = ",".join(sorted(languages_found))
 
     # Extract demo/prototype/beta information
     if re.search(r"\(Demo.*?\)", original_name, re.IGNORECASE):

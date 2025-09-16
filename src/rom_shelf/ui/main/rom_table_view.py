@@ -104,18 +104,21 @@ class ROMTableView(QTableView):
         # Configure column resize modes and widths
         header = self.horizontalHeader()
         for i, column in enumerate(columns):
+            # Apply custom delegates where needed
+            if column.key == "hash":
+                print(f"[DEBUG] Setting hash delegate for column {i}")
+                self.setItemDelegateForColumn(i, self._hash_delegate)
+            elif column.key == "region":
+                print(f"[DEBUG] Setting region delegate for column {i}")
+                self.setItemDelegateForColumn(i, self._region_delegate)
+            elif column.key == "language":
+                print(f"[DEBUG] Setting language delegate for column {i}")
+                self.setItemDelegateForColumn(i, self._language_delegate)
+
+            # Configure column sizing
             if column.key == "name":
                 # Make Name column stretch to fill available space
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-            elif column.key == "hash":
-                # Apply custom delegate for hash column
-                self.setItemDelegateForColumn(i, self._hash_delegate)
-            elif column.key == "region":
-                # Apply custom delegate for region column
-                self.setItemDelegateForColumn(i, self._region_delegate)
-            elif column.key == "language":
-                # Apply custom delegate for language column
-                self.setItemDelegateForColumn(i, self._language_delegate)
             else:
                 # Set other columns to fixed size
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)

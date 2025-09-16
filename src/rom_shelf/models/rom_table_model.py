@@ -158,8 +158,12 @@ class ROMTableModel(QAbstractTableModel):
             # Region display is handled by the delegate
             return ""
         elif key == "language":
-            # Language display is handled by the delegate
-            return ""
+            # Return the language data as fallback if delegate doesn't work
+            # The delegate should override this display
+            return entry.metadata.get("language", "")
+        elif key in entry.metadata:
+            # Return any other metadata field
+            return str(entry.metadata.get(key, ""))
         else:
             return ""
 

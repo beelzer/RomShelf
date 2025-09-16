@@ -21,30 +21,59 @@ class LanguageDelegate(QStyledItemDelegate):
     """Delegate for displaying language information with flag icons."""
 
     # Map language codes to their full names and associated country flags
+    # Using lowercase keys for case-insensitive matching
     LANGUAGE_INFO = {
-        "En": ("English", "gb"),  # Great Britain flag for English
-        "Fr": ("Français", "fr"),
-        "De": ("Deutsch", "de"),
-        "Es": ("Español", "es"),
-        "It": ("Italiano", "it"),
-        "Pt": ("Português", "pt"),
-        "Ja": ("日本語", "jp"),
-        "Ko": ("한국어", "kr"),
-        "Zh": ("中文", "cn"),
-        "Ru": ("Русский", "ru"),
-        "Nl": ("Nederlands", "nl"),
-        "Sv": ("Svenska", "se"),
-        "No": ("Norsk", "no"),
-        "Da": ("Dansk", "dk"),
-        "Fi": ("Suomi", "fi"),
-        "Pl": ("Polski", "pl"),
-        "Ar": ("العربية", "sa"),  # Saudi Arabia for Arabic
-        "He": ("עברית", "il"),  # Israel for Hebrew
-        "Tr": ("Türkçe", "tr"),
-        "Gr": ("Ελληνικά", "gr"),
-        "Hu": ("Magyar", "hu"),
-        "Cs": ("Čeština", "cz"),
-        "Ro": ("Română", "ro"),
+        "en": ("English", "gb"),  # Great Britain flag for English
+        "fr": ("French", "fr"),
+        "de": ("German", "de"),
+        "es": ("Spanish", "es"),
+        "it": ("Italian", "it"),
+        "pt": ("Portuguese", "pt"),
+        "ja": ("Japanese", "jp"),
+        "ko": ("Korean", "kr"),
+        "zh": ("Chinese", "cn"),
+        "ru": ("Russian", "ru"),
+        "nl": ("Dutch", "nl"),
+        "sv": ("Swedish", "se"),
+        "no": ("Norwegian", "no"),
+        "da": ("Danish", "dk"),
+        "fi": ("Finnish", "fi"),
+        "pl": ("Polish", "pl"),
+        "ar": ("Arabic", "sa"),  # Saudi Arabia for Arabic
+        "he": ("Hebrew", "il"),  # Israel for Hebrew
+        "tr": ("Turkish", "tr"),
+        "gr": ("Greek", "gr"),
+        "hu": ("Hungarian", "hu"),
+        "cs": ("Czech", "cz"),
+        "ro": ("Romanian", "ro"),
+        "ca": ("Catalan", "es"),  # Catalan - use Spanish flag
+        "eu": ("Basque", "es"),  # Basque - use Spanish flag
+        "ga": ("Irish", "ie"),  # Irish
+        "cy": ("Welsh", "gb"),  # Welsh - use GB flag
+        "is": ("Icelandic", "is"),  # Icelandic
+        "hr": ("Croatian", "hr"),  # Croatian
+        "sr": ("Serbian", "rs"),  # Serbian
+        "sk": ("Slovak", "sk"),  # Slovak
+        "sl": ("Slovenian", "si"),  # Slovenian
+        "lt": ("Lithuanian", "lt"),  # Lithuanian
+        "lv": ("Latvian", "lv"),  # Latvian
+        "et": ("Estonian", "ee"),  # Estonian
+        "bg": ("Bulgarian", "bg"),  # Bulgarian
+        "uk": ("Ukrainian", "ua"),  # Ukrainian
+        "be": ("Belarusian", "by"),  # Belarusian
+        "mk": ("Macedonian", "mk"),  # Macedonian
+        "sq": ("Albanian", "al"),  # Albanian
+        "vi": ("Vietnamese", "vn"),  # Vietnamese
+        "th": ("Thai", "th"),  # Thai
+        "id": ("Indonesian", "id"),  # Indonesian
+        "ms": ("Malay", "my"),  # Malay
+        "hi": ("Hindi", "in"),  # Hindi
+        "ta": ("Tamil", "in"),  # Tamil
+        "te": ("Telugu", "in"),  # Telugu
+        "bn": ("Bengali", "bd"),  # Bengali
+        "ur": ("Urdu", "pk"),  # Urdu
+        "fa": ("Persian", "ir"),  # Persian/Farsi
+        "multi": ("Multi-language", "world"),  # For multi-language ROMs
     }
 
     def __init__(self, parent=None):
@@ -63,7 +92,17 @@ class LanguageDelegate(QStyledItemDelegate):
         """
         # Get the ROM entry
         rom_entry = index.data(Qt.UserRole + 1)
-        if not rom_entry or "language" not in rom_entry.metadata:
+        if not rom_entry:
+            logger.debug(f"No ROM entry for row {index.row()}")
+            super().paint(painter, option, index)
+            return
+
+        if "language" not in rom_entry.metadata:
+            # Log first few times to avoid spam
+            if index.row() < 5:
+                logger.debug(
+                    f"No language in metadata for {rom_entry.display_name}. Metadata keys: {list(rom_entry.metadata.keys())}"
+                )
             super().paint(painter, option, index)
             return
 
@@ -71,6 +110,11 @@ class LanguageDelegate(QStyledItemDelegate):
         if not language_str:
             super().paint(painter, option, index)
             return
+
+        # Debug log the language string
+        logger.info(
+            f"[LANG] Row {index.row()}: Language string for {rom_entry.display_name}: '{language_str}'"
+        )
 
         # Prepare painter
         painter.save()
@@ -80,19 +124,23 @@ class LanguageDelegate(QStyledItemDelegate):
             painter.fillRect(option.rect, option.palette.highlight())
 
         # Parse languages (handle multi-language strings)
-        # First normalize the string by replacing common separators
-        normalized = language_str.replace("+", ",").replace("/", ",")
+        # Check for special "Multi" indicator
+        if language_str.strip().lower() == "multi":
+            # For generic multi-language ROMs, show a special indicator
+            languages = ["Multi"]
+        else:
+            # First normalize the string by replacing common separators
+            normalized = language_str.replace("+", ",").replace("/", ",")
 
-        # Split by comma and clean up
-        languages = [lang.strip() for lang in normalized.split(",") if lang.strip()]
+            # Split by comma and clean up
+            languages = [lang.strip() for lang in normalized.split(",") if lang.strip()]
 
-        # If no languages found, use the original string
-        if not languages:
-            languages = [language_str.strip()]
+            # If no languages found, use the original string
+            if not languages:
+                languages = [language_str.strip()]
 
         # Log the parsed languages for debugging
-        if len(languages) > 1:
-            logger.debug(f"Multi-language ROM: '{language_str}' parsed as {languages}")
+        logger.info(f"[LANG] Parsed '{language_str}' into languages: {languages}")
 
         # Calculate positions
         rect = option.rect
@@ -105,13 +153,16 @@ class LanguageDelegate(QStyledItemDelegate):
         self._icon_rects[index_key] = {}
         self._language_data[index_key] = {}
 
+        icons_drawn = 0
         for i, lang in enumerate(languages[:6]):  # Limit to 6 languages for space
-            # Normalize language code (capitalize first letter)
-            lang_code = lang[:2].capitalize() if len(lang) >= 2 else lang.capitalize()
+            # Normalize language code to lowercase for matching
+            lang_code = lang[:2].lower() if len(lang) >= 2 else lang.lower()
+            logger.info(f"[LANG] Processing language '{lang}' -> normalized to '{lang_code}'")
 
             # Get language info
             if lang_code in self.LANGUAGE_INFO:
                 full_name, country_code = self.LANGUAGE_INFO[lang_code]
+                logger.info(f"[LANG] Found language info: {full_name} ({country_code})")
 
                 # Get flag icon for the language's associated country
                 flag_icon = FlagIcons.get_flag_icon(country_code, size=QSize(16, 12))
@@ -121,26 +172,32 @@ class LanguageDelegate(QStyledItemDelegate):
                     icon_y = y + (height - 12) // 2
                     icon_rect = QRect(x, icon_y, 16, 12)
                     flag_icon.paint(painter, icon_rect, Qt.AlignCenter)
+                    logger.info(f"[LANG] Drew flag icon at ({x}, {icon_y})")
 
                     # Store the clickable area for hover detection
                     self._icon_rects[index_key][i] = icon_rect
                     self._language_data[index_key][i] = (lang_code, full_name)
 
                     x += 18  # Move to next icon position
+                    icons_drawn += 1
                 else:
-                    logger.debug(
-                        f"No flag icon found for language {lang_code} (country: {country_code})"
+                    logger.warning(
+                        f"[LANG] No flag icon found for language {lang_code} (country: {country_code})"
                     )
             else:
                 # Unknown language - skip showing it since we don't have a flag
-                logger.debug(f"Unknown language code: {lang_code} from '{lang}'")
+                logger.warning(f"[LANG] Unknown language code: {lang_code} from '{lang}'")
+                logger.info(f"[LANG] Available codes: {list(self.LANGUAGE_INFO.keys())[:10]}...")
                 pass
 
         # If no languages were drawn, show text fallback
-        if not self._icon_rects.get(index_key):
+        if icons_drawn == 0:
+            logger.warning(f"[LANG] No icons drawn for '{language_str}', showing text fallback")
             painter.setPen(option.palette.text().color())
             painter.setFont(option.font)
             painter.drawText(option.rect, Qt.AlignVCenter | Qt.AlignLeft, f"  {language_str}")
+        else:
+            logger.info(f"[LANG] Successfully drew {icons_drawn} flag icon(s)")
 
         painter.restore()
 
@@ -183,15 +240,15 @@ class LanguageDelegate(QStyledItemDelegate):
 
                         # Add additional info for some languages
                         extra_info = {
-                            "En": "Primary language for UK, USA, Australia, Canada",
-                            "Fr": "Primary language for France, Canada (Quebec), Belgium",
-                            "De": "Primary language for Germany, Austria, Switzerland",
-                            "Es": "Primary language for Spain, Latin America",
-                            "It": "Primary language for Italy",
-                            "Pt": "Primary language for Portugal, Brazil",
-                            "Ja": "Primary language for Japan",
-                            "Ko": "Primary language for South Korea",
-                            "Zh": "Primary language for China, Taiwan, Hong Kong",
+                            "en": "Primary language for UK, USA, Australia, Canada",
+                            "fr": "Primary language for France, Canada (Quebec), Belgium",
+                            "de": "Primary language for Germany, Austria, Switzerland",
+                            "es": "Primary language for Spain, Latin America",
+                            "it": "Primary language for Italy",
+                            "pt": "Primary language for Portugal, Brazil",
+                            "ja": "Primary language for Japan",
+                            "ko": "Primary language for South Korea",
+                            "zh": "Primary language for China, Taiwan, Hong Kong",
                         }
 
                         if lang_code in extra_info:

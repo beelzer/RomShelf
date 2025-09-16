@@ -196,8 +196,16 @@ class FlagIcons:
 
         # Get ISO code for the region
         iso_code = FlagIcons._get_iso_code(region)
+
+        # If no region mapping found, try using the input directly as an ISO code
         if not iso_code:
-            return None
+            # Check if it's already a valid ISO code (if corresponding SVG exists)
+            flags_dir = FlagIcons._get_flags_directory()
+            svg_path = flags_dir / f"{region.lower()}.svg"
+            if svg_path.exists():
+                iso_code = region.lower()
+            else:
+                return None
 
         # Try to load SVG flag
         return FlagIcons._load_svg_flag(iso_code, size)
