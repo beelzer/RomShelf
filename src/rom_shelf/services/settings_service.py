@@ -1,5 +1,6 @@
 """Settings service - centralized settings management and validation."""
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ class SettingsService:
 
     def __init__(self, settings_manager: SettingsManager) -> None:
         """Initialize the settings service."""
+        self.logger = logging.getLogger(__name__)
         self._settings_manager = settings_manager
         self._change_callbacks: list[Callable[[], None]] = []
 
@@ -35,7 +37,7 @@ class SettingsService:
             try:
                 callback()
             except Exception as e:
-                print(f"Error in settings change callback: {e}")
+                self.logger.error(f"Error in settings change callback: {e}")
 
     def save_settings(self) -> bool:
         """Save current settings to disk."""
@@ -44,7 +46,7 @@ class SettingsService:
             self._notify_changes()
             return True
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            self.logger.error(f"Error saving settings: {e}")
             return False
 
     def reload_settings(self) -> bool:
@@ -55,7 +57,7 @@ class SettingsService:
             self._notify_changes()
             return True
         except Exception as e:
-            print(f"Error reloading settings: {e}")
+            self.logger.error(f"Error reloading settings: {e}")
             return False
 
     # Theme and UI Settings
@@ -153,7 +155,7 @@ class SettingsService:
             if path.exists() and path.is_dir():
                 valid_directories.append(str(path.resolve()))
             else:
-                print(f"Warning: Directory does not exist: {directory}")
+                self.logger.warning(f"Directory does not exist: {directory}")
 
         self.set_platform_setting(platform_id, "rom_directories", valid_directories)
 
@@ -260,7 +262,7 @@ class SettingsService:
             backup_manager.save()
             return True
         except Exception as e:
-            print(f"Error exporting settings: {e}")
+            self.logger.error(f"Error exporting settings: {e}")
             return False
 
     def import_settings(self, file_path: Path) -> bool:
@@ -277,5 +279,5 @@ class SettingsService:
             self._notify_changes()
             return True
         except Exception as e:
-            print(f"Error importing settings: {e}")
+            self.logger.error(f"Error importing settings: {e}")
             return False

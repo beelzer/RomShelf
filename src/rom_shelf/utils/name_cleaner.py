@@ -38,28 +38,44 @@ def extract_rom_metadata(original_name: str) -> dict[str, Any]:
     metadata = {}
 
     # Extract region information
-    region_patterns = [
-        (r"\(USA.*?\)", "USA"),
-        (r"\(Europe.*?\)", "Europe"),
-        (r"\(Japan.*?\)", "Japan"),
-        (r"\(World.*?\)", "World"),
-        (r"\(Asia.*?\)", "Asia"),
-        (r"\(Australia.*?\)", "Australia"),
-        (r"\(Germany.*?\)", "Germany"),
-        (r"\(France.*?\)", "France"),
-        (r"\(Spain.*?\)", "Spain"),
-        (r"\(Italy.*?\)", "Italy"),
-        (r"\(Netherlands.*?\)", "Netherlands"),
-        (r"\(Sweden.*?\)", "Sweden"),
-        (r"\(Brazil.*?\)", "Brazil"),
-        (r"\(Korea.*?\)", "Korea"),
-        (r"\(China.*?\)", "China"),
-    ]
+    # First, try to match multiple regions (e.g., "USA, Europe")
+    multi_region_match = re.search(
+        r"\(((?:USA|Europe|Japan|World|Asia|Australia|Germany|France|Spain|Italy|Netherlands|Sweden|Brazil|Korea|China)(?:,\s*(?:USA|Europe|Japan|World|Asia|Australia|Germany|France|Spain|Italy|Netherlands|Sweden|Brazil|Korea|China))*)\)",
+        original_name,
+        re.IGNORECASE,
+    )
 
-    for pattern, region in region_patterns:
-        if re.search(pattern, original_name, re.IGNORECASE):
-            metadata["region"] = region
-            break
+    if multi_region_match:
+        metadata["region"] = multi_region_match.group(1)
+    else:
+        # Try single letter region codes (e.g., JUE, U, E)
+        single_letter_match = re.search(r"\(([UJEKFGISCADNXYZ]+)\)", original_name)
+        if single_letter_match:
+            metadata["region"] = single_letter_match.group(1)
+        else:
+            # Fall back to individual region patterns
+            region_patterns = [
+                (r"\(USA.*?\)", "USA"),
+                (r"\(Europe.*?\)", "Europe"),
+                (r"\(Japan.*?\)", "Japan"),
+                (r"\(World.*?\)", "World"),
+                (r"\(Asia.*?\)", "Asia"),
+                (r"\(Australia.*?\)", "Australia"),
+                (r"\(Germany.*?\)", "Germany"),
+                (r"\(France.*?\)", "France"),
+                (r"\(Spain.*?\)", "Spain"),
+                (r"\(Italy.*?\)", "Italy"),
+                (r"\(Netherlands.*?\)", "Netherlands"),
+                (r"\(Sweden.*?\)", "Sweden"),
+                (r"\(Brazil.*?\)", "Brazil"),
+                (r"\(Korea.*?\)", "Korea"),
+                (r"\(China.*?\)", "China"),
+            ]
+
+            for pattern, region in region_patterns:
+                if re.search(pattern, original_name, re.IGNORECASE):
+                    metadata["region"] = region
+                    break
 
     # Extract revision information
     rev_match = re.search(r"\(Rev\s+(\w+)\)", original_name, re.IGNORECASE)

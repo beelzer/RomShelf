@@ -7,6 +7,8 @@ from ...models.rom_table_model import ROMTableModel
 from ...platforms.core.base_platform import TableColumn
 from ...platforms.core.platform_registry import platform_registry
 from ..delegates.hash_delegate import HashDelegate
+from ..delegates.language_delegate import LanguageDelegate
+from ..delegates.region_delegate import RegionDelegate
 
 
 class ROMTableView(QTableView):
@@ -17,6 +19,8 @@ class ROMTableView(QTableView):
         super().__init__(parent)
         self._rom_model: ROMTableModel | None = None
         self._hash_delegate = HashDelegate(self)
+        self._region_delegate = RegionDelegate(self)
+        self._language_delegate = LanguageDelegate(self)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -106,6 +110,12 @@ class ROMTableView(QTableView):
             elif column.key == "hash":
                 # Apply custom delegate for hash column
                 self.setItemDelegateForColumn(i, self._hash_delegate)
+            elif column.key == "region":
+                # Apply custom delegate for region column
+                self.setItemDelegateForColumn(i, self._region_delegate)
+            elif column.key == "language":
+                # Apply custom delegate for language column
+                self.setItemDelegateForColumn(i, self._language_delegate)
             else:
                 # Set other columns to fixed size
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)

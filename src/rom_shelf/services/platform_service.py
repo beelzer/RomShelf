@@ -1,5 +1,6 @@
 """Platform service - business logic for platform operations and configuration."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ class PlatformService:
 
     def __init__(self) -> None:
         """Initialize the platform service."""
+        self.logger = logging.getLogger(__name__)
         self._registry = platform_registry
 
     def get_all_platforms(self) -> list[BasePlatform]:
@@ -80,7 +82,7 @@ class PlatformService:
         try:
             return platform.validate_file(file_path, internal_path)
         except Exception as e:
-            print(f"Error validating file {file_path} for platform {platform_id}: {e}")
+            self.logger.error(f"Error validating file {file_path} for platform {platform_id}: {e}")
             return False
 
     def get_file_validation_info(self, platform_id: str, file_path: Path) -> dict[str, Any]:
@@ -218,7 +220,7 @@ class PlatformService:
                         matches[best_match].append(item)
 
         except (OSError, PermissionError) as e:
-            print(f"Error scanning directory {parent_dir}: {e}")
+            self.logger.error(f"Error scanning directory {parent_dir}: {e}")
 
         return matches
 

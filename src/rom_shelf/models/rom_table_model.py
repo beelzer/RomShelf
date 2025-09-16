@@ -2,11 +2,10 @@
 
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from ..core.rom_database import get_rom_database
 from ..platforms.core.base_platform import TableColumn
-from ..utils.flag_icons import FlagIcons
 from .rom_entry import ROMEntry
 
 
@@ -120,14 +119,14 @@ class ROMTableModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.DisplayRole:
             return self._get_display_data(entry, column.key)
-        elif role == Qt.ItemDataRole.DecorationRole and column.key == "region":
-            # Return flag icon for region column
-            return self._get_region_icon(entry, column.key)
         elif role == Qt.ItemDataRole.ToolTipRole:
             return self._get_tooltip_data(entry, column.key)
         elif role == Qt.ItemDataRole.UserRole:
             # Return raw sort data for Qt's sorting
             return self._get_sort_data(entry, column.key)
+        elif role == Qt.ItemDataRole.UserRole + 1:
+            # Return the ROM entry itself for custom delegates
+            return entry
 
         return None
 
@@ -143,13 +142,6 @@ class ROMTableModel(QAbstractTableModel):
             return self._columns[section].label
         return None
 
-    def _get_region_icon(self, entry: ROMEntry, key: str) -> Any:
-        """Get region flag icon for a ROM entry."""
-        if key == "region" and key in entry.metadata:
-            region_value = str(entry.metadata[key])
-            return FlagIcons.get_flag_icon(region_value, QSize(20, 14))
-        return None
-
     def _get_display_data(self, entry: ROMEntry, key: str) -> str:
         """Get display data for a ROM entry field."""
         if key == "actions":
@@ -162,12 +154,12 @@ class ROMTableModel(QAbstractTableModel):
             return entry.platform_id.upper()
         elif key == "hash":
             return self._get_rom_hash(entry)
-        elif key == "region" and key in entry.metadata:
-            # Special handling for region column - return text only (icon handled separately)
-            region_value = str(entry.metadata[key])
-            return FlagIcons.get_display_text_for_region(region_value, include_flag=False)
-        elif key == "language" and key in entry.metadata or key in entry.metadata:
-            return str(entry.metadata[key])
+        elif key == "region":
+            # Region display is handled by the delegate
+            return ""
+        elif key == "language":
+            # Language display is handled by the delegate
+            return ""
         else:
             return ""
 
@@ -184,10 +176,14 @@ class ROMTableModel(QAbstractTableModel):
                 tooltip_parts.append(f"Related: {related_str}")
             return "\n".join(tooltip_parts)
         elif key == "hash":
-            hash_value = self._get_rom_hash(entry)
-            return f"MD5: {hash_value}" if hash_value else "MD5 hash not available"
-        elif key == "language" and key in entry.metadata:
-            return str(entry.metadata[key])
+            # Hash column tooltips are handled by the custom delegate
+            return ""
+        elif key == "region":
+            # Region column tooltips are handled by the custom delegate
+            return ""
+        elif key == "language":
+            # Language column tooltips are handled by the custom delegate
+            return ""
         return self._get_display_data(entry, key)
 
     def _get_sort_data(self, entry: ROMEntry, key: str) -> Any:
@@ -240,7 +236,7 @@ class ROMTableModel(QAbstractTableModel):
         """Get MD5 hash for a ROM entry from the database."""
         try:
             rom_db = get_rom_database()
-            fingerprint = rom_db.get_rom_fingerprint(entry.file_path, entry.internal_path)
+            fingerprint = rom_db.get_fingerprint(entry.file_path, entry.internal_path)
             if fingerprint and fingerprint.md5_hash:
                 return fingerprint.md5_hash
             return ""

@@ -1,5 +1,7 @@
 """Toolbar and menu management for the main window."""
 
+import logging
+
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow, QMenuBar, QProgressBar, QStatusBar, QToolBar
@@ -11,6 +13,7 @@ class ToolbarManager(QObject):
     def __init__(self, main_window: QMainWindow) -> None:
         """Initialize the toolbar manager."""
         super().__init__(main_window)
+        self.logger = logging.getLogger(__name__)
         self._main_window = main_window
         self._status_bar: QStatusBar | None = None
         self._progress_bar: QProgressBar | None = None
@@ -131,7 +134,9 @@ class ToolbarManager(QObject):
 
             # Debug output to track progress bar updates
             current_value = self._progress_bar.value()
-            print(f"ProgressBar: Setting value from {current_value} to {clamped_value}%")
+            self.logger.debug(
+                f"ProgressBar: Setting value from {current_value} to {clamped_value}%"
+            )
 
             self._progress_bar.setValue(clamped_value)
 
@@ -144,14 +149,14 @@ class ToolbarManager(QObject):
     def set_progress_indeterminate(self, indeterminate: bool = True) -> None:
         """Set progress bar to indeterminate mode."""
         if self._progress_bar:
-            print(f"ProgressBar: Setting indeterminate mode to {indeterminate}")
+            self.logger.debug(f"ProgressBar: Setting indeterminate mode to {indeterminate}")
             if indeterminate:
                 self._progress_bar.setRange(0, 0)
             else:
                 self._progress_bar.setRange(0, 100)
                 # Don't reset value when switching to determinate - preserve current progress
                 current_value = self._progress_bar.value()
-                print(
+                self.logger.debug(
                     f"ProgressBar: Set to determinate mode (0-100, preserving value={current_value})"
                 )
             # Force visual update

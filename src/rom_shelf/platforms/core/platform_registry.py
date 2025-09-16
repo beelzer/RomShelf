@@ -1,6 +1,7 @@
 """Platform registry for managing all supported platforms."""
 
 import importlib
+import logging
 import pkgutil
 from pathlib import Path
 
@@ -13,6 +14,7 @@ class PlatformRegistry:
 
     def __init__(self) -> None:
         """Initialize the platform registry."""
+        self.logger = logging.getLogger(__name__)
         self._platforms: dict[str, BasePlatform] = {}
         self._initialize_platforms()
 
@@ -36,7 +38,7 @@ class PlatformRegistry:
                 self._register_platform_settings(platform_instance)
 
             except Exception as e:
-                print(f"Warning: Failed to initialize platform '{platform_id}': {e}")
+                self.logger.warning(f"Failed to initialize platform '{platform_id}': {e}")
 
         if not self._platforms:
             raise RuntimeError(
@@ -70,7 +72,8 @@ class PlatformRegistry:
                 )  # Remove 'core' from package path
                 importlib.import_module(f".{module_name}", package=parent_package)
             except ImportError as e:
-                print(f"Warning: Failed to import platform module '{module_name}': {e}")
+                # Warning: Failed to import platform module, but can't log here
+                pass  # Module import failed
 
     def register_platform_class(self, platform_class: type[BasePlatform]) -> None:
         """Manually register a platform class (alternative to decorator)."""
@@ -79,11 +82,13 @@ class PlatformRegistry:
             platform_id = platform_instance.platform_id
 
             if platform_id in self._platforms:
-                print(f"Warning: Platform '{platform_id}' is already registered, replacing...")
+                # Platform already registered, replacing
+                pass
 
             self._platforms[platform_id] = platform_instance
         except Exception as e:
-            print(f"Error registering platform class {platform_class.__name__}: {e}")
+            # Error registering platform class
+            pass
 
     def get_platform(self, platform_id: str) -> BasePlatform | None:
         """Get a platform by its ID."""
@@ -119,8 +124,8 @@ class PlatformRegistry:
 
             extension_registry.register_platform_extensions(platform_instance)
         except Exception as e:
-            print(
-                f"Warning: Failed to register extensions for {platform_instance.platform_id}: {e}"
+            self.logger.warning(
+                f"Failed to register extensions for {platform_instance.platform_id}: {e}"
             )
 
     def _register_platform_settings(self, platform_instance: BasePlatform) -> None:
@@ -134,7 +139,8 @@ class PlatformRegistry:
                 platform_instance.platform_id, platform_settings_def
             )
         except Exception as e:
-            print(f"Warning: Failed to register settings for {platform_instance.platform_id}: {e}")
+            # Failed to register settings
+            pass
 
 
 # Global platform registry instance

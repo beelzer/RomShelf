@@ -1,6 +1,7 @@
 """ROM scanning functionality with archive and multi-file support."""
 
 import concurrent.futures
+import logging
 import os
 import threading
 import time
@@ -40,6 +41,7 @@ class ROMScanner(QObject):
     def __init__(self) -> None:
         """Initialize the ROM scanner."""
         super().__init__()
+        self.logger = logging.getLogger(__name__)
         self._archive_processor = ArchiveProcessor()
         # Multi-file validation now handled by platforms
         self._rom_database = get_rom_database()
@@ -75,13 +77,17 @@ class ROMScanner(QObject):
                 for directory in directories:
                     # Normalize path - handle both forward and backward slashes
                     dir_path = Path(directory).resolve()
-                    print(f"Scanning directory: {dir_path} (exists: {dir_path.exists()})")
+                    self.logger.info(
+                        f"Scanning directory: {dir_path} (exists: {dir_path.exists()})"
+                    )
                     if dir_path.exists() and dir_path.is_dir():
                         files = self._collect_files(dir_path, scan_subdirectories)
-                        print(f"Found {len(files)} files in {dir_path}")
+                        self.logger.debug(f"Found {len(files)} files in {dir_path}")
                         platform_files.extend(files)
                     else:
-                        print(f"Directory does not exist or is not accessible: {dir_path}")
+                        self.logger.warning(
+                            f"Directory does not exist or is not accessible: {dir_path}"
+                        )
 
                 # Map files to their platform
                 for file_path in platform_files:
@@ -102,12 +108,8 @@ class ROMScanner(QObject):
 
             self.scan_completed.emit(all_entries)
 
-            # Save database after successful scan
-            try:
-                self._rom_database.save_database()
-                print(f"Database saved with {len(all_entries)} ROM entries")
-            except Exception as e:
-                print(f"Failed to save database: {e}")
+            # Database auto-commits in SQLite
+            self.logger.info(f"Scan completed with {len(all_entries)} ROM entries")
 
         except Exception as e:
             self.scan_error.emit(str(e))
@@ -182,7 +184,7 @@ class ROMScanner(QObject):
                         processed_files.update(local_processed)
 
                 except Exception as e:
-                    print(f"Error processing file {file_path}: {e}")
+                    self.logger.error(f"Error processing file {file_path}: {e}")
                     continue
 
             return file_entries
@@ -192,7 +194,7 @@ class ROMScanner(QObject):
             scan_start_time = time.time()
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-                print(f"Starting multi-threaded scan with {self._max_workers} workers")
+                self.logger.info(f"Starting multi-threaded scan with {self._max_workers} workers")
 
                 # Submit all files for processing
                 future_to_file = {
@@ -218,16 +220,16 @@ class ROMScanner(QObject):
 
                     except Exception as e:
                         file_path = future_to_file[future]
-                        print(f"Error processing {file_path}: {e}")
+                        self.logger.error(f"Error processing {file_path}: {e}")
 
             scan_time = time.time() - scan_start_time
             files_per_second = len(unique_files) / scan_time if scan_time > 0 else 0
-            print(
+            self.logger.info(
                 f"Multi-threaded scan completed in {scan_time:.2f}s ({files_per_second:.1f} files/second)"
             )
 
         except Exception as e:
-            print(f"Error in multithreaded processing: {e}")
+            self.logger.error(f"Error in multithreaded processing: {e}")
             self.scan_error.emit(str(e))
 
         return all_entries
@@ -243,21 +245,22 @@ class ROMScanner(QObject):
             internal_path: Internal path for archive files
 
         Returns:
-            True if ROM fingerprint is valid/created, False if file should be skipped
+            True if ROM should be processed (new or changed), False if unchanged
         """
         try:
             # Check if fingerprint exists
-            fingerprint = self._rom_database.get_rom_fingerprint(file_path, internal_path)
+            fingerprint = self._rom_database.get_fingerprint(file_path, internal_path)
 
             if fingerprint:
                 # Verify fingerprint is still valid
                 status = self._rom_database.verify_fingerprint(fingerprint)
                 if status == FingerprintStatus.VALID:
                     # File unchanged, skip processing
-                    return True
+                    self.logger.debug(f"Skipping unchanged file: {file_path.name}")
+                    return False  # Don't process this file
                 elif status in [FingerprintStatus.CHANGED, FingerprintStatus.CORRUPTED]:
                     # File changed, need to update fingerprint
-                    print(f"ROM file changed: {file_path}")
+                    self.logger.info(f"ROM file changed, updating: {file_path.name}")
 
             # Create new fingerprint for new or changed files
             new_fingerprint = self._rom_database.create_rom_fingerprint(
@@ -265,13 +268,13 @@ class ROMScanner(QObject):
             )
 
             # Store fingerprint in database
-            self._rom_database.store_rom_fingerprint(new_fingerprint)
-            return True
+            self._rom_database.add_fingerprint(new_fingerprint)
+            return True  # Process this file
 
         except Exception as e:
-            print(f"Database error for {file_path}: {e}")
+            self.logger.error(f"Database error for {file_path}: {e}")
             # Continue processing even if database fails
-            return True
+            return True  # Process on error to be safe
 
     def _collect_files(self, directory: Path, scan_subdirectories: bool) -> list[Path]:
         """Collect all files in directory."""
@@ -340,6 +343,7 @@ class ROMScanner(QObject):
             if extension in supported_formats:
                 if platform.validate_rom(file_path):
                     # Check/create database fingerprint
+                    # Always create ROM entry, even for unchanged files
                     self._check_or_create_fingerprint(file_path, platform.platform_id)
 
                     entry = platform.create_rom_entry(file_path)
@@ -405,6 +409,7 @@ class ROMScanner(QObject):
                     extracted_file.extracted_path
                 ):
                     # Check/create database fingerprint for archive content
+                    # Always create ROM entry, even for unchanged files
                     self._check_or_create_fingerprint(
                         file_path, platform.platform_id, extracted_file.original_path
                     )
@@ -470,6 +475,7 @@ class ROMScanner(QObject):
             if extension in supported_formats:
                 if platform.validate_rom(primary_file):
                     # Check/create database fingerprint for multi-file ROM
+                    # Always create ROM entry, even for unchanged files
                     self._check_or_create_fingerprint(primary_file, platform.platform_id)
 
                     entry = platform.create_rom_entry(

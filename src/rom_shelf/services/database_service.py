@@ -1,5 +1,6 @@
 """Database service - abstraction layer for ROM database operations."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ class DatabaseService:
 
     def __init__(self, database: ROMDatabase | None = None) -> None:
         """Initialize the database service."""
+        self.logger = logging.getLogger(__name__)
         self._database = database or get_rom_database()
 
     @property
@@ -26,7 +28,7 @@ class DatabaseService:
         try:
             return self._database.get_fingerprint_data(file_path, internal_path)
         except Exception as e:
-            print(f"Error getting fingerprint for {file_path}: {e}")
+            self.logger.error(f"Error getting fingerprint for {file_path}: {e}")
             return None
 
     def create_fingerprint(self, file_path: str, internal_path: str | None = None) -> str | None:
@@ -37,7 +39,7 @@ class DatabaseService:
                 return fingerprint_data["fingerprint"]
             return None
         except Exception as e:
-            print(f"Error creating fingerprint for {file_path}: {e}")
+            self.logger.error(f"Error creating fingerprint for {file_path}: {e}")
             return None
 
     def get_or_create_fingerprint(
@@ -47,7 +49,7 @@ class DatabaseService:
         try:
             return self._database.get_or_create_fingerprint(file_path, internal_path)
         except Exception as e:
-            print(f"Error with fingerprint for {file_path}: {e}")
+            self.logger.error(f"Error with fingerprint for {file_path}: {e}")
             return {"fingerprint": None, "status": FingerprintStatus.ERROR, "error": str(e)}
 
     def remove_fingerprint(self, file_path: str, internal_path: str | None = None) -> bool:
@@ -59,7 +61,7 @@ class DatabaseService:
                 return True
             return False
         except Exception as e:
-            print(f"Error removing fingerprint for {file_path}: {e}")
+            self.logger.error(f"Error removing fingerprint for {file_path}: {e}")
             return False
 
     def cleanup_missing_files(self) -> int:
@@ -82,10 +84,10 @@ class DatabaseService:
 
             if removed_count > 0:
                 self.save_database()
-                print(f"Cleaned up {removed_count} missing file fingerprints")
+                self.logger.info(f"Cleaned up {removed_count} missing file fingerprints")
 
         except Exception as e:
-            print(f"Error during cleanup: {e}")
+            self.logger.error(f"Error during cleanup: {e}")
 
         return removed_count
 
@@ -100,7 +102,7 @@ class DatabaseService:
             return result is not None
 
         except Exception as e:
-            print(f"Error refreshing fingerprint for {file_path}: {e}")
+            self.logger.error(f"Error refreshing fingerprint for {file_path}: {e}")
             return False
 
     # Database Management
@@ -110,7 +112,7 @@ class DatabaseService:
             self._database.save()
             return True
         except Exception as e:
-            print(f"Error saving database: {e}")
+            self.logger.error(f"Error saving database: {e}")
             return False
 
     def get_database_info(self) -> dict[str, Any]:
@@ -258,7 +260,7 @@ class DatabaseService:
             return True
 
         except Exception as e:
-            print(f"Error exporting database to {export_path}: {e}")
+            self.logger.error(f"Error exporting database to {export_path}: {e}")
             return False
 
     def import_database(self, import_path: Path, merge: bool = True) -> bool:
@@ -282,7 +284,7 @@ class DatabaseService:
             return True
 
         except Exception as e:
-            print(f"Error importing database from {import_path}: {e}")
+            self.logger.error(f"Error importing database from {import_path}: {e}")
             return False
 
     # Query Operations
@@ -301,7 +303,7 @@ class DatabaseService:
                     results.append(result)
 
         except Exception as e:
-            print(f"Error searching fingerprints: {e}")
+            self.logger.error(f"Error searching fingerprints: {e}")
 
         return results
 
@@ -319,7 +321,7 @@ class DatabaseService:
                     results.append(result)
 
         except Exception as e:
-            print(f"Error getting fingerprints by extension: {e}")
+            self.logger.error(f"Error getting fingerprints by extension: {e}")
 
         return results
 
@@ -344,7 +346,7 @@ class DatabaseService:
             }
 
         except Exception as e:
-            print(f"Error finding duplicate fingerprints: {e}")
+            self.logger.error(f"Error finding duplicate fingerprints: {e}")
             duplicates = {}
 
         return duplicates

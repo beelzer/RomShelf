@@ -60,12 +60,19 @@ Desktop.ini
 
 # Project specific
 data/settings.json
-data/rom_database.json
 data/cache/
 temp/
 cache/
 *.log
 *.tmp
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Claude Code
 .claude/

@@ -1,5 +1,6 @@
 """Platform-specific settings page with dynamic UI generation."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ class PlatformSpecificPage(SettingsPage):
 
     def __init__(self, platform_id: str, platform_name: str, parent: QWidget | None = None) -> None:
         """Initialize the platform-specific page."""
+        self.logger = logging.getLogger(__name__)
         self._platform_id = platform_id
         self._platform_name = platform_name
         self._setting_widgets: dict[str, Any] = {}  # Maps setting key to widget
@@ -429,7 +431,7 @@ class PlatformSpecificPage(SettingsPage):
                         checkbox.setChecked(format_ext in enabled_formats)
 
             except Exception as e:
-                print(f"Error loading setting {setting_key}: {e}")
+                self.logger.error(f"Error loading setting {setting_key}: {e}")
 
     def save_settings(self, settings: Settings) -> None:
         """Save settings from the platform-specific page."""
@@ -470,7 +472,7 @@ class PlatformSpecificPage(SettingsPage):
                                 enabled_formats.append(format_ext)
                         platform_data[setting_key] = enabled_formats
                 except Exception as e:
-                    print(f"Error saving setting {setting_key}: {e}")
+                    self.logger.error(f"Error saving setting {setting_key}: {e}")
 
             # Merge with existing platform settings to preserve rom_directories and other settings
             if self._platform_id not in settings.platform_settings:

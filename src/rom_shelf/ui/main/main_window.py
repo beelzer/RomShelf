@@ -1,5 +1,7 @@
 """Main window for the ROM Shelf application using extracted components."""
 
+import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
@@ -29,6 +31,7 @@ class MainWindow(QMainWindow):
     def __init__(self, service_container: ServiceContainer) -> None:
         """Initialize the main window."""
         super().__init__()
+        self.logger = logging.getLogger(__name__)
         self._service_container = service_container
         self._settings_service = service_container.settings_service
 
@@ -331,24 +334,24 @@ class MainWindow(QMainWindow):
 
         # Start scanning
         self._scanner_thread.start()
-        print(
+        self.logger.info(
             f"Started scanning {total_directories} directories across {platform_count} platforms..."
         )
 
     def _on_rom_found(self, rom_entry) -> None:
         """Handle a ROM being found during scan."""
-        print(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
+        self.logger.debug(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
         self.add_rom_entries([rom_entry])
 
     def _on_scan_completed(self, all_entries) -> None:
         """Handle scan completion."""
-        print(f"Scan completed. Found {len(all_entries)} total ROMs.")
+        self.logger.info(f"Scan completed. Found {len(all_entries)} total ROMs.")
 
         if self._toolbar_manager:
             # Set to 100% to show completion before hiding
             self._toolbar_manager.update_progress(100)
             self._current_progress_percentage = 100
-            print("Progress: Scan completed (100%)")
+            self.logger.debug("Progress: Scan completed (100%)")
 
             # Brief delay to show 100% before hiding
             self._toolbar_manager.hide_progress_bar()
@@ -363,7 +366,7 @@ class MainWindow(QMainWindow):
 
     def _on_scan_error(self, error_msg) -> None:
         """Handle scan errors."""
-        print(f"Scan error: {error_msg}")
+        self.logger.error(f"Scan error: {error_msg}")
 
         if self._toolbar_manager:
             self._toolbar_manager.hide_progress_bar()
@@ -408,7 +411,7 @@ class MainWindow(QMainWindow):
                     self._toolbar_manager.set_progress_indeterminate(False)
 
                 # Debug output first
-                print(
+                self.logger.debug(
                     f"Progress: {progress.files_processed}/{progress.total_files} ({percentage}%)"
                 )
 
@@ -418,7 +421,7 @@ class MainWindow(QMainWindow):
         else:
             # If we don't have total yet or something is wrong, show indeterminate progress
             if progress.total_files == 0:
-                print(f"Files processed: {progress.files_processed} (total unknown)")
+                self.logger.debug(f"Files processed: {progress.files_processed} (total unknown)")
             if self._current_progress_percentage == 0:  # Only set indeterminate once
                 self._toolbar_manager.set_progress_indeterminate(True)
 
@@ -454,12 +457,12 @@ class MainWindow(QMainWindow):
         # Stop scanner thread if running
         if self._scanner_thread:
             if self._scanner_thread.isRunning():
-                print("Stopping ROM scanner thread...")
+                self.logger.info("Stopping ROM scanner thread...")
                 self._scanner_thread.scanner.stop_scan()
                 self._scanner_thread.quit()
                 self._scanner_thread.wait(5000)  # Wait up to 5 seconds
                 if self._scanner_thread.isRunning():
-                    print("Thread didn't stop gracefully, terminating...")
+                    self.logger.warning("Thread didn't stop gracefully, terminating...")
                     self._scanner_thread.terminate()
                     self._scanner_thread.wait(1000)  # Wait 1 more second after terminate
 

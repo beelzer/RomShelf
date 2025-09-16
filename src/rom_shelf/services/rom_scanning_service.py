@@ -1,6 +1,7 @@
 """ROM scanning service - business logic for ROM discovery and validation."""
 
 import concurrent.futures
+import logging
 import os
 import threading
 import time
@@ -49,6 +50,7 @@ class ROMScanningService:
 
     def __init__(self) -> None:
         """Initialize the ROM scanning service."""
+        self.logger = logging.getLogger(__name__)
         self._archive_processor = ArchiveProcessor()
         # TODO: Replace with platform-specific multi-file handling
         self._rom_database = get_rom_database()
@@ -183,7 +185,7 @@ class ROMScanningService:
                 if not path.exists():
                     continue
 
-                print(f"Scanning directory: {path} (exists: {path.exists()})")
+                self.logger.info(f"Scanning directory: {path} (exists: {path.exists()})")
 
                 # Get all files in directory
                 if scan_subdirs:
@@ -191,7 +193,7 @@ class ROMScanningService:
                 else:
                     files = [f for f in path.iterdir() if f.is_file()]
 
-                print(f"Found {len(files)} files in {path}")
+                self.logger.debug(f"Found {len(files)} files in {path}")
 
                 if not files:
                     continue
@@ -227,7 +229,7 @@ class ROMScanningService:
         max_workers: int,
     ) -> list[ROMEntry]:
         """Process files in parallel using thread pool."""
-        print(f"Starting multi-threaded scan with {max_workers} workers")
+        self.logger.info(f"Starting multi-threaded scan with {max_workers} workers")
         start_time = time.time()
 
         entries = []
@@ -264,7 +266,7 @@ class ROMScanningService:
 
                 except Exception as e:
                     file_path = future_to_file[future]
-                    print(f"Error processing {file_path}: {e}")
+                    self.logger.error(f"Error processing {file_path}: {e}")
 
                 # Update progress
                 with self._progress_lock:
@@ -277,7 +279,9 @@ class ROMScanningService:
         elapsed = time.time() - start_time
         if elapsed > 0:
             rate = len(files) / elapsed
-            print(f"Multi-threaded scan completed in {elapsed:.2f}s ({rate:.1f} files/second)")
+            self.logger.info(
+                f"Multi-threaded scan completed in {elapsed:.2f}s ({rate:.1f} files/second)"
+            )
 
         return entries
 
@@ -307,7 +311,7 @@ class ROMScanningService:
                 return []
 
         except Exception as e:
-            print(f"Error processing file {file_path}: {e}")
+            self.logger.error(f"Error processing file {file_path}: {e}")
             return []
 
     def _process_archive_file(
@@ -384,12 +388,12 @@ class ROMScanningService:
             )
 
             if rom_entry:
-                print(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
+                self.logger.debug(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
 
             return rom_entry
 
         except Exception as e:
-            print(f"Error creating ROM entry for {file_path}: {e}")
+            self.logger.error(f"Error creating ROM entry for {file_path}: {e}")
             return None
 
     def get_scan_statistics(self) -> dict[str, Any]:
