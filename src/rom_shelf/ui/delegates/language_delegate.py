@@ -111,10 +111,10 @@ class LanguageDelegate(QStyledItemDelegate):
             super().paint(painter, option, index)
             return
 
-        # Debug log the language string
-        logger.info(
-            f"[LANG] Row {index.row()}: Language string for {rom_entry.display_name}: '{language_str}'"
-        )
+        # Debug log the language string (disabled for normal operation)
+        # logger.info(
+        #     f"[LANG] Row {index.row()}: Language string for {rom_entry.display_name}: '{language_str}'"
+        # )
 
         # Prepare painter
         painter.save()
@@ -139,8 +139,8 @@ class LanguageDelegate(QStyledItemDelegate):
             if not languages:
                 languages = [language_str.strip()]
 
-        # Log the parsed languages for debugging
-        logger.info(f"[LANG] Parsed '{language_str}' into languages: {languages}")
+        # Log the parsed languages for debugging (disabled for normal operation)
+        # logger.info(f"[LANG] Parsed '{language_str}' into languages: {languages}")
 
         # Calculate positions with proper padding to match text cells
         rect = option.rect
@@ -157,12 +157,11 @@ class LanguageDelegate(QStyledItemDelegate):
         for i, lang in enumerate(languages[:6]):  # Limit to 6 languages for space
             # Normalize language code to lowercase for matching
             lang_code = lang[:2].lower() if len(lang) >= 2 else lang.lower()
-            logger.info(f"[LANG] Processing language '{lang}' -> normalized to '{lang_code}'")
+            # logger.info(f"[LANG] Processing language '{lang}' -> normalized to '{lang_code}'")
 
             # Get language info
             if lang_code in self.LANGUAGE_INFO:
                 full_name, country_code = self.LANGUAGE_INFO[lang_code]
-                logger.info(f"[LANG] Found language info: {full_name} ({country_code})")
 
                 # Get flag icon for the language's associated country
                 flag_icon = FlagIcons.get_flag_icon(country_code, size=QSize(16, 12))
@@ -172,7 +171,6 @@ class LanguageDelegate(QStyledItemDelegate):
                     icon_y = y + (height - 12) // 2
                     icon_rect = QRect(x, icon_y, 16, 12)
                     flag_icon.paint(painter, icon_rect, Qt.AlignCenter)
-                    logger.info(f"[LANG] Drew flag icon at ({x}, {icon_y})")
 
                     # Store the clickable area for hover detection
                     self._icon_rects[index_key][i] = icon_rect
@@ -181,23 +179,17 @@ class LanguageDelegate(QStyledItemDelegate):
                     x += 18  # Move to next icon position
                     icons_drawn += 1
                 else:
-                    logger.warning(
-                        f"[LANG] No flag icon found for language {lang_code} (country: {country_code})"
-                    )
+                    # No flag icon found for this language
+                    pass
             else:
                 # Unknown language - skip showing it since we don't have a flag
-                logger.warning(f"[LANG] Unknown language code: {lang_code} from '{lang}'")
-                logger.info(f"[LANG] Available codes: {list(self.LANGUAGE_INFO.keys())[:10]}...")
                 pass
 
         # If no languages were drawn, show text fallback
         if icons_drawn == 0:
-            logger.warning(f"[LANG] No icons drawn for '{language_str}', showing text fallback")
             painter.setPen(option.palette.text().color())
             painter.setFont(option.font)
             painter.drawText(option.rect, Qt.AlignVCenter | Qt.AlignLeft, f"  {language_str}")
-        else:
-            logger.info(f"[LANG] Successfully drew {icons_drawn} flag icon(s)")
 
         painter.restore()
 

@@ -1,7 +1,13 @@
 """ROM table view component with configurable columns."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHeaderView, QTableView, QWidget
+import os
+import platform
+import subprocess
+from pathlib import Path
+
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QHeaderView, QMenu, QMessageBox, QTableView, QWidget
 
 from ...models.rom_table_model import ROMTableModel
 from ...platforms.core.base_platform import TableColumn
@@ -51,6 +57,10 @@ class ROMTableView(QTableView):
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setSortIndicatorShown(True)
         header.setHighlightSections(False)
+
+        # Enable context menu
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
 
     def set_model(self, model: ROMTableModel) -> None:
         """Set the ROM table model."""
@@ -128,3 +138,114 @@ class ROMTableView(QTableView):
         """Apply table-specific settings."""
         self.verticalHeader().setDefaultSectionSize(row_height)
         self.verticalHeader().setMinimumSectionSize(max(20, row_height - 4))
+
+    def _show_context_menu(self, position: QPoint) -> None:
+        """Show context menu for ROM entries."""
+        index = self.indexAt(position)
+        if not index.isValid() or not self._rom_model:
+            return
+
+        # Get the ROM entry
+        rom_entry = self._rom_model.get_rom_entry(index)
+        if not rom_entry:
+            return
+
+        # Create context menu
+        menu = QMenu(self)
+
+        # Show in file manager
+        if os.name == "nt":
+            file_manager_text = "Show in Explorer"
+        elif platform.system() == "Darwin":
+            file_manager_text = "Show in Finder"
+        else:
+            file_manager_text = "Show in File Manager"
+
+        show_in_explorer = QAction(file_manager_text, self)
+        show_in_explorer.triggered.connect(lambda: self._show_in_file_manager(rom_entry.file_path))
+        menu.addAction(show_in_explorer)
+
+        # Copy file path
+        copy_path = QAction("Copy File Path", self)
+        copy_path.triggered.connect(lambda: self._copy_to_clipboard(str(rom_entry.file_path)))
+        menu.addAction(copy_path)
+
+        # Copy file name
+        copy_name = QAction("Copy File Name", self)
+        copy_name.triggered.connect(lambda: self._copy_to_clipboard(rom_entry.file_path.name))
+        menu.addAction(copy_name)
+
+        menu.addSeparator()
+
+        # Copy ROM info
+        copy_info = QAction("Copy ROM Info", self)
+        copy_info.triggered.connect(lambda: self._copy_rom_info(rom_entry))
+        menu.addAction(copy_info)
+
+        # If it's an archive with internal path
+        if rom_entry.internal_path:
+            menu.addSeparator()
+            copy_internal = QAction("Copy Internal Path", self)
+            copy_internal.triggered.connect(
+                lambda: self._copy_to_clipboard(rom_entry.internal_path)
+            )
+            menu.addAction(copy_internal)
+
+        # Show the menu at cursor position
+        menu.exec(self.mapToGlobal(position))
+
+    def _show_in_file_manager(self, file_path: Path) -> None:
+        """Open the file location in the system's file manager."""
+        if not file_path.exists():
+            QMessageBox.warning(self, "File Not Found", f"The file no longer exists:\n{file_path}")
+            return
+
+        system = platform.system()
+        try:
+            if system == "Windows":
+                # Windows: Use explorer with /select to highlight the file
+                subprocess.run(["explorer", "/select,", str(file_path)])
+            elif system == "Darwin":
+                # macOS: Use open -R to reveal in Finder
+                subprocess.run(["open", "-R", str(file_path)])
+            else:
+                # Linux: Try to open the parent directory
+                # Different file managers have different commands
+                parent_dir = file_path.parent
+                if subprocess.run(["which", "xdg-open"], capture_output=True).returncode == 0:
+                    subprocess.run(["xdg-open", str(parent_dir)])
+                elif subprocess.run(["which", "nautilus"], capture_output=True).returncode == 0:
+                    subprocess.run(["nautilus", "--select", str(file_path)])
+                elif subprocess.run(["which", "dolphin"], capture_output=True).returncode == 0:
+                    subprocess.run(["dolphin", "--select", str(file_path)])
+                else:
+                    # Fallback: just open the parent directory
+                    subprocess.run(["xdg-open", str(parent_dir)])
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not open file location:\n{e}")
+
+    def _copy_to_clipboard(self, text: str) -> None:
+        """Copy text to clipboard."""
+        from PySide6.QtWidgets import QApplication
+
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
+
+    def _copy_rom_info(self, rom_entry) -> None:
+        """Copy ROM information to clipboard."""
+        info_lines = [
+            f"Name: {rom_entry.display_name}",
+            f"File: {rom_entry.file_path.name}",
+            f"Path: {rom_entry.file_path}",
+            f"Platform: {rom_entry.platform_id}",
+        ]
+
+        # Add metadata if available
+        if rom_entry.metadata:
+            for key, value in rom_entry.metadata.items():
+                if value:  # Only add non-empty values
+                    # Capitalize the key for display
+                    display_key = key.replace("_", " ").title()
+                    info_lines.append(f"{display_key}: {value}")
+
+        self._copy_to_clipboard("\n".join(info_lines))
