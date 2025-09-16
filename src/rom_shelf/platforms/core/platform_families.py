@@ -127,7 +127,7 @@ class DiscBasedPlatform(BasePlatform):
             TableColumn("format", "Format", 80),
             TableColumn("size", "Size", 100),
             TableColumn("discs", "Discs", 70),
-            TableColumn("hash", "Hash", 160),
+            TableColumn("hash", "Hashes", 160),
         ]
 
     def validate_rom(self, file_path: Path) -> bool:
@@ -282,7 +282,7 @@ class ComputerPlatform(BasePlatform):
             TableColumn("format", "Format", 100),
             TableColumn("version", "Version", 90),
             TableColumn("size", "Size", 100),
-            TableColumn("hash", "Hash", 160),
+            TableColumn("hash", "Hashes", 160),
         ]
 
     @abstractmethod

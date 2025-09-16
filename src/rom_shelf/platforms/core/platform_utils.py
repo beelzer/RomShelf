@@ -196,7 +196,7 @@ class PlatformUtils:
             TableColumn("language", "Language", 100),
             TableColumn("version", "Version", 90),
             TableColumn("size", "Size", 100),
-            TableColumn("hash", "Hash", 160),
+            TableColumn("hash", "Hashes", 160),
         ]
 
     @staticmethod
@@ -209,7 +209,7 @@ class PlatformUtils:
             TableColumn("version", "Version", 90),
             TableColumn("size", "Size", 100),
             TableColumn("file_type", "Type", 80),
-            TableColumn("hash", "Hash", 160),
+            TableColumn("hash", "Hashes", 160),
         ]
 
     @staticmethod

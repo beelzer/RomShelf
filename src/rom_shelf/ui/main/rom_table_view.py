@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QHeaderView, QTableView, QWidget
 from ...models.rom_table_model import ROMTableModel
 from ...platforms.core.base_platform import TableColumn
 from ...platforms.core.platform_registry import platform_registry
+from ..delegates.hash_delegate import HashDelegate
 
 
 class ROMTableView(QTableView):
@@ -15,6 +16,7 @@ class ROMTableView(QTableView):
         """Initialize the ROM table view."""
         super().__init__(parent)
         self._rom_model: ROMTableModel | None = None
+        self._hash_delegate = HashDelegate(self)
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -24,6 +26,12 @@ class ROMTableView(QTableView):
         self.verticalHeader().setVisible(False)
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.setShowGrid(False)
+
+        # Enable mouse tracking for tooltips
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
+        # Enable hover events for delegates
+        self.viewport().setAttribute(Qt.WA_Hover, True)
 
         # Disable text wrapping to use ellipsis instead
         self.setWordWrap(False)
@@ -85,12 +93,19 @@ class ROMTableView(QTableView):
         # Update the model with new columns
         self._rom_model.set_columns(columns)
 
+        # Clear all column delegates first to avoid misalignment
+        for i in range(self._rom_model.columnCount()):
+            self.setItemDelegateForColumn(i, None)
+
         # Configure column resize modes and widths
         header = self.horizontalHeader()
         for i, column in enumerate(columns):
             if column.key == "name":
                 # Make Name column stretch to fill available space
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            elif column.key == "hash":
+                # Apply custom delegate for hash column
+                self.setItemDelegateForColumn(i, self._hash_delegate)
             else:
                 # Set other columns to fixed size
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
