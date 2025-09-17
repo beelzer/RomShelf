@@ -33,36 +33,67 @@ class AchievementDelegate(QStyledItemDelegate):
                 self._icon = QIcon(str(png_path))
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
-        """Paint the achievement icon if game has RA data."""
+        """Paint the achievement icon and progress if game has RA data."""
         # Get RA game ID from model
         ra_game_id = index.data(Qt.UserRole + 10)  # Custom role for RA game ID
+        # Get user progress from model
+        user_progress = index.data(Qt.UserRole + 11)  # Custom role for user progress
 
         if ra_game_id:
-            # Calculate icon rect centered in the cell
-            icon_size = 16
-            icon_rect = QRect(
-                option.rect.center().x() - icon_size // 2,
-                option.rect.center().y() - icon_size // 2,
-                icon_size,
-                icon_size,
-            )
+            painter.save()
 
-            # Draw icon if available
+            # Draw the icon on the left side if available
+            icon_width = 0
             if self._icon:
+                icon_size = 16
+                icon_rect = QRect(
+                    option.rect.left() + 2,
+                    option.rect.center().y() - icon_size // 2,
+                    icon_size,
+                    icon_size,
+                )
                 self._icon.paint(painter, icon_rect)
+                icon_width = icon_size + 4
+
+            # Draw progress text to the right of icon
+            if user_progress:
+                earned = user_progress.get("achievements_earned", 0)
+                total = user_progress.get("achievements_total", 0)
+
+                # Format: (X/Y)
+                text = f"({earned}/{total})"
+
+                # Set color based on completion
+                if total > 0 and earned == total:
+                    painter.setPen(Qt.GlobalColor.darkGreen)
+                elif earned > 0:
+                    painter.setPen(Qt.GlobalColor.darkYellow)
+                else:
+                    painter.setPen(Qt.GlobalColor.gray)
             else:
-                # Fallback: draw a simple "RA" text
-                painter.save()
-                painter.setPen(Qt.GlobalColor.darkYellow)
-                painter.drawText(option.rect, Qt.AlignCenter, "RA")
-                painter.restore()
+                # No user progress but has RA data - show (0/?)
+                text = "(0/?)"
+                painter.setPen(Qt.GlobalColor.gray)
+
+            # Draw progress text
+            text_rect = QRect(
+                option.rect.left() + icon_width,
+                option.rect.top(),
+                option.rect.width() - icon_width,
+                option.rect.height(),
+            )
+            # Use the default option font to match other table cells
+            painter.setFont(option.font)
+            painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, text)
+
+            painter.restore()
         else:
             # No RA data, leave cell empty
             super().paint(painter, option, index)
 
     def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
         """Return size hint for the cell."""
-        return QSize(24, option.rect.height())
+        return QSize(100, option.rect.height())
 
     def editorEvent(
         self, event: Any, model: Any, option: QStyleOptionViewItem, index: QModelIndex

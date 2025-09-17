@@ -86,7 +86,7 @@ class ROMTableView(QTableView):
                     TableColumn("language", "Language", 100),
                     TableColumn("version", "Version", 90),
                     TableColumn("size", "Size", 100),
-                    TableColumn("achievements", "RA", 40),  # RetroAchievements column
+                    TableColumn("achievements", "RA", 100),  # RetroAchievements column
                 ]
             )
         else:
@@ -104,7 +104,7 @@ class ROMTableView(QTableView):
                         TableColumn("language", "Language", 100),
                         TableColumn("version", "Version", 90),
                         TableColumn("size", "Size", 100),
-                        TableColumn("achievements", "RA", 40),  # RetroAchievements column
+                        TableColumn("achievements", "RA", 100),  # RetroAchievements column
                     ]
                 )
 

@@ -1,6 +1,7 @@
 """RetroAchievements settings page with cache management."""
 
 import logging
+import time
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -330,8 +331,10 @@ class RetroAchievementsPage(QWidget):
 
         # Platform cache table
         self._cache_table = QTableWidget()
-        self._cache_table.setColumnCount(4)
-        self._cache_table.setHorizontalHeaderLabels(["Platform", "Games", "Last Updated", "Action"])
+        self._cache_table.setColumnCount(6)
+        self._cache_table.setHorizontalHeaderLabels(
+            ["Platform", "Games", "Last Updated", "Progress Sync", "Update", "Sync Progress"]
+        )
         self._cache_table.horizontalHeader().setStretchLastSection(False)
         self._cache_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._cache_table.horizontalHeader().setSectionResizeMode(
@@ -340,8 +343,13 @@ class RetroAchievementsPage(QWidget):
         self._cache_table.horizontalHeader().setSectionResizeMode(
             2, QHeaderView.ResizeMode.ResizeToContents
         )
-        self._cache_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self._cache_table.setColumnWidth(3, 70)  # Narrower column for button
+        self._cache_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._cache_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self._cache_table.setColumnWidth(4, 70)  # Update button column
+        self._cache_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self._cache_table.setColumnWidth(5, 90)  # Sync Progress button column
         self._cache_table.setAlternatingRowColors(True)
         self._cache_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._cache_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -370,6 +378,10 @@ class RetroAchievementsPage(QWidget):
         self._update_all_btn = QPushButton("Update All")
         self._update_all_btn.clicked.connect(self._update_all_caches)
         cache_actions_layout.addWidget(self._update_all_btn)
+
+        self._sync_progress_btn = QPushButton("Sync Progress")
+        self._sync_progress_btn.clicked.connect(self._sync_user_progress)
+        cache_actions_layout.addWidget(self._sync_progress_btn)
 
         cache_actions_layout.addStretch()
 
@@ -436,6 +448,82 @@ class RetroAchievementsPage(QWidget):
             self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
             self._toggle_key_btn.setText("Show")
 
+    def _get_progress_sync_info(self) -> dict:
+        """Get progress sync information for platforms."""
+        try:
+            from pathlib import Path
+
+            from ...core.rom_database import get_rom_database
+            from ...services.ra_database import RetroAchievementsDatabase
+
+            ra_db_path = Path("data/retroachievements.db")
+            if not ra_db_path.exists():
+                return {}
+
+            ra_db = RetroAchievementsDatabase(ra_db_path)
+            rom_db = get_rom_database()
+
+            # Get latest progress sync timestamp for each platform
+            progress_info = {}
+
+            # Check if we have a configured username
+            settings = self._settings_manager.settings
+            if not settings.ra_username:
+                return {}
+
+            # Get all games with RA data grouped by platform
+            with rom_db.pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT platform, ra_game_id
+                    FROM rom_fingerprints
+                    WHERE ra_game_id IS NOT NULL
+                """)
+                results = cursor.fetchall()
+
+                platform_games = {}
+                for row in results:
+                    platform = row[0].lower()  # Normalize platform name to lowercase
+                    game_id = row[1]
+                    if platform not in platform_games:
+                        platform_games[platform] = set()
+                    platform_games[platform].add(game_id)
+
+                self.logger.debug(f"Found RA games for platforms: {list(platform_games.keys())}")
+
+            # Get progress sync status for each platform
+            for platform, game_ids in platform_games.items():
+                synced_games = 0
+                latest_sync = 0
+
+                for game_id in game_ids:
+                    progress = ra_db.get_user_game_progress(settings.ra_username, game_id)
+                    if progress:
+                        synced_games += 1
+                        last_updated = progress.get("last_updated", 0)
+                        latest_sync = max(latest_sync, last_updated)
+
+                progress_info[platform] = {
+                    "total_games": len(game_ids),
+                    "synced_games": synced_games,
+                    "latest_sync": latest_sync,
+                    "sync_percentage": (synced_games / len(game_ids) * 100) if game_ids else 0,
+                }
+
+                self.logger.debug(
+                    f"Platform {platform}: {synced_games}/{len(game_ids)} games synced"
+                )
+
+            self.logger.debug(f"Progress info: {progress_info}")
+            self.logger.info(
+                f"Generated progress sync info for {len(progress_info)} platforms: {list(progress_info.keys())}"
+            )
+            return progress_info
+
+        except Exception as e:
+            self.logger.error(f"Failed to get progress sync info: {e}")
+            return {}
+
     def _refresh_cache_table(self):
         """Refresh the cache statistics table."""
         try:
@@ -452,6 +540,9 @@ class RetroAchievementsPage(QWidget):
 
             # Get list of all supported platforms
             all_platforms = self._ra_service.get_all_supported_platforms()
+
+            # Get progress sync information
+            progress_sync_info = self._get_progress_sync_info()
 
             # Combine cached and uncached platforms
             all_platform_stats = {}
@@ -504,19 +595,86 @@ class RetroAchievementsPage(QWidget):
 
                 self._cache_table.setItem(row, 2, age_item)
 
-                # Create a container widget to properly position the button
-                cell_widget = QWidget()
-                cell_layout = QHBoxLayout(cell_widget)
-                cell_layout.setContentsMargins(0, 0, 0, 0)
-                cell_layout.setSpacing(0)
+                # Progress sync status (column 3)
+                # Map console names to database platform names
+                platform_mapping = {
+                    "game boy": "gameboy",
+                    "game boy advance": "gba",
+                    "game boy color": "gbc",
+                    "genesis/mega drive": "genesis",
+                    "nintendo 64": "n64",
+                    "snes": "snes",
+                    "nes": "nes",
+                    "master system": "mastersystem",
+                    "playstation": "psx",
+                    "neo geo": "neogeo",
+                    "game gear": "gamegear",
+                    "nintendo ds": "nds",
+                    "playstation 2": "ps2",
+                    "arcade": "arcade",
+                    "playstation portable": "psp",
+                }
+
+                platform_key = platform_mapping.get(info["name"].lower(), info["name"].lower())
+                progress_info = progress_sync_info.get(platform_key, {})
+
+                if progress_info:
+                    synced = progress_info.get("synced_games", 0)
+                    total = progress_info.get("total_games", 0)
+                    percentage = progress_info.get("sync_percentage", 0)
+
+                    if total > 0:
+                        progress_text = f"{synced}/{total} ({percentage:.0f}%)"
+                        progress_item = QTableWidgetItem(progress_text)
+
+                        # Color code by sync percentage
+                        if percentage >= 100:
+                            progress_item.setForeground(Qt.GlobalColor.green)
+                        elif percentage >= 50:
+                            progress_item.setForeground(Qt.GlobalColor.yellow)
+                        elif percentage > 0:
+                            progress_item.setForeground(Qt.GlobalColor.red)
+                        else:
+                            progress_item.setForeground(Qt.GlobalColor.gray)
+                    else:
+                        progress_item = QTableWidgetItem("No RA games")
+                        progress_item.setForeground(Qt.GlobalColor.gray)
+                else:
+                    progress_item = QTableWidgetItem("No RA games")
+                    progress_item.setForeground(Qt.GlobalColor.gray)
+
+                progress_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._cache_table.setItem(row, 3, progress_item)
+
+                # Update button (column 4)
+                update_cell_widget = QWidget()
+                update_cell_layout = QHBoxLayout(update_cell_widget)
+                update_cell_layout.setContentsMargins(0, 0, 0, 0)
+                update_cell_layout.setSpacing(0)
 
                 update_btn = TableCellButton("Update")
                 update_btn.clicked.connect(
                     lambda checked, cid=console_id: self._update_platform_cache(cid)
                 )
-                cell_layout.addWidget(update_btn)
+                update_cell_layout.addWidget(update_btn)
+                self._cache_table.setCellWidget(row, 4, update_cell_widget)
 
-                self._cache_table.setCellWidget(row, 3, cell_widget)
+                # Sync Progress button (column 5)
+                sync_cell_widget = QWidget()
+                sync_cell_layout = QHBoxLayout(sync_cell_widget)
+                sync_cell_layout.setContentsMargins(0, 0, 0, 0)
+                sync_cell_layout.setSpacing(0)
+
+                sync_btn = TableCellButton("Sync")
+                sync_btn.clicked.connect(
+                    lambda checked, platform=platform_key: self._sync_platform_progress(platform)
+                )
+                # Disable if no RA games for this platform
+                if not progress_info or progress_info.get("total_games", 0) == 0:
+                    sync_btn.setEnabled(False)
+
+                sync_cell_layout.addWidget(sync_btn)
+                self._cache_table.setCellWidget(row, 5, sync_cell_widget)
 
                 row += 1
 
@@ -526,7 +684,7 @@ class RetroAchievementsPage(QWidget):
                 empty_item = QTableWidgetItem("No platforms configured")
                 empty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._cache_table.setItem(0, 0, empty_item)
-                self._cache_table.setSpan(0, 0, 1, 4)
+                self._cache_table.setSpan(0, 0, 1, 6)  # Updated for 6 columns
 
         except Exception as e:
             self.logger.error(f"Failed to refresh cache table: {e}")
@@ -689,6 +847,249 @@ class RetroAchievementsPage(QWidget):
             )
             self._refresh_cache_table()
 
+    def _sync_user_progress(self):
+        """Sync user achievement progress for all games with RA data."""
+        # Check if username and API key are configured
+        settings = self._settings_manager.settings
+        if not settings.ra_username:
+            QMessageBox.warning(
+                self, "Username Required", "Please configure your RetroAchievements username first."
+            )
+            return
+
+        if not settings.ra_api_key:
+            QMessageBox.warning(
+                self, "API Key Required", "Please configure your RetroAchievements API key first."
+            )
+            return
+
+        # Check if any operations are running
+        if (self._update_thread and self._update_thread.isRunning()) or (
+            self._update_all_thread and self._update_all_thread.isRunning()
+        ):
+            QMessageBox.warning(
+                self, "Operation in Progress", "Please wait for current operations to complete."
+            )
+            return
+
+        # Get all games with RA data
+        try:
+            from ...core.rom_database import get_rom_database
+
+            rom_db = get_rom_database()
+
+            # Get all fingerprints with RA game IDs
+            with rom_db.pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT DISTINCT ra_game_id FROM rom_fingerprints WHERE ra_game_id IS NOT NULL"
+                )
+                results = cursor.fetchall()
+                game_ids = [row[0] for row in results]
+
+            if not game_ids:
+                QMessageBox.information(
+                    self,
+                    "No Games Found",
+                    "No games with RetroAchievements data found.\n"
+                    "Please scan your ROMs first and ensure platform caches are updated.",
+                )
+                return
+
+            # Confirm sync
+            reply = QMessageBox.question(
+                self,
+                "Sync Progress",
+                f"This will fetch achievement progress for {len(game_ids)} game{'s' if len(game_ids) != 1 else ''}.\n"
+                f"This may take a few minutes depending on your connection.\n\n"
+                "Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Create progress dialog
+                self._progress_dialog = CacheUpdateDialog(
+                    self, "Sync User Progress", is_update_all=True, total_count=len(game_ids)
+                )
+
+                # Update the text for progress sync
+                self._progress_dialog.confirm_label.setText(
+                    f"This will sync achievement progress for {len(game_ids)} game{'s' if len(game_ids) != 1 else ''}.\n"
+                    "This may take a few minutes depending on your connection.\n\n"
+                    "Continue?"
+                )
+                self._progress_dialog.update_btn.setText("Sync")
+
+                # Disconnect default connections and set up sync-specific ones
+                self._progress_dialog.update_btn.clicked.disconnect()
+                self._progress_dialog.cancel_btn.clicked.disconnect()
+
+                self._progress_dialog.update_btn.clicked.connect(
+                    lambda: self._start_progress_sync(game_ids)
+                )
+                self._progress_dialog.cancel_btn.clicked.connect(self._progress_dialog.reject)
+
+                self._progress_dialog.show()
+
+        except Exception as e:
+            self.logger.error(f"Error preparing progress sync: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to prepare progress sync: {str(e)}")
+
+    def _start_progress_sync(self, game_ids):
+        """Start the progress sync in a separate thread."""
+        self._progress_dialog.start_update()
+
+        # Create and start sync thread
+        self._sync_thread = ProgressSyncThread(self._settings_manager.settings, game_ids)
+        self._sync_thread.progress_updated.connect(self._on_sync_progress_update)
+        self._sync_thread.finished.connect(self._on_progress_sync_finished)
+        self._sync_thread.start()
+
+    def _on_sync_progress_update(self, message, current, total, speed, bytes_val):
+        """Adapter method to convert ProgressSyncThread signals to dialog format."""
+        self._progress_dialog.update_progress(current, message)
+
+        # Update download speed display with games per second
+        if speed > 0:
+            speed_text = f"Syncing: {speed:.1f} games/sec"
+            self._progress_dialog.update_download_speed(0, 0, 0)  # Clear download info
+            self._progress_dialog.speed_label.setText(speed_text)
+
+    def _on_progress_sync_finished(self, success, message, synced_count, total_count):
+        """Handle progress sync completion."""
+        if success:
+            self._progress_dialog.show_result(
+                True, f"Successfully synced progress for {synced_count} out of {total_count} games."
+            )
+        else:
+            self._progress_dialog.show_result(False, message)
+
+        self._sync_thread = None
+
+    def _sync_platform_progress(self, platform_name: str):
+        """Sync progress for games from a specific platform."""
+        # Check if username and API key are configured
+        settings = self._settings_manager.settings
+        if not settings.ra_username:
+            QMessageBox.warning(
+                self, "Username Required", "Please configure your RetroAchievements username first."
+            )
+            return
+
+        if not settings.ra_api_key:
+            QMessageBox.warning(
+                self, "API Key Required", "Please configure your RetroAchievements API key first."
+            )
+            return
+
+        # Check if any operations are running
+        if (self._update_thread and self._update_thread.isRunning()) or (
+            self._update_all_thread and self._update_all_thread.isRunning()
+        ):
+            QMessageBox.warning(
+                self, "Operation in Progress", "Please wait for current operations to complete."
+            )
+            return
+
+        # Get games for this platform with RA data
+        try:
+            from ...core.rom_database import get_rom_database
+
+            rom_db = get_rom_database()
+
+            # Get all fingerprints with RA game IDs for this platform
+            with rom_db.pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT DISTINCT ra_game_id FROM rom_fingerprints WHERE platform = ? AND ra_game_id IS NOT NULL",
+                    (platform_name,),
+                )
+                results = cursor.fetchall()
+                game_ids = [row[0] for row in results]
+
+            if not game_ids:
+                QMessageBox.information(
+                    self,
+                    "No Games Found",
+                    f"No games with RetroAchievements data found for {platform_name.title()}.",
+                )
+                return
+
+            # Confirm sync
+            reply = QMessageBox.question(
+                self,
+                "Sync Platform Progress",
+                f"This will sync achievement progress for {len(game_ids)} {platform_name.title()} game{'s' if len(game_ids) != 1 else ''}.\n\n"
+                "Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Create progress dialog
+                self._progress_dialog = CacheUpdateDialog(
+                    self,
+                    f"Sync {platform_name.title()} Progress",
+                    is_update_all=True,
+                    total_count=len(game_ids),
+                )
+
+                # Update the text for progress sync
+                self._progress_dialog.confirm_label.setText(
+                    f"This will sync achievement progress for {len(game_ids)} {platform_name.title()} game{'s' if len(game_ids) != 1 else ''}.\n\n"
+                    "Continue?"
+                )
+                self._progress_dialog.update_btn.setText("Sync")
+
+                # Disconnect default connections and set up sync-specific ones
+                self._progress_dialog.update_btn.clicked.disconnect()
+                self._progress_dialog.cancel_btn.clicked.disconnect()
+
+                self._progress_dialog.update_btn.clicked.connect(
+                    lambda: self._start_platform_progress_sync(game_ids, platform_name)
+                )
+                self._progress_dialog.cancel_btn.clicked.connect(self._progress_dialog.reject)
+
+                self._progress_dialog.show()
+
+        except Exception as e:
+            self.logger.error(f"Error preparing platform progress sync: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to prepare progress sync: {str(e)}")
+
+    def _start_platform_progress_sync(self, game_ids, platform_name):
+        """Start the platform progress sync in a separate thread."""
+        self._progress_dialog.start_update()
+
+        # Create and start sync thread
+        self._sync_thread = ProgressSyncThread(self._settings_manager.settings, game_ids)
+        self._sync_thread.progress_updated.connect(self._on_sync_progress_update)
+        self._sync_thread.finished.connect(
+            lambda success,
+            message,
+            synced_count,
+            total_count: self._on_platform_progress_sync_finished(
+                success, message, synced_count, total_count, platform_name
+            )
+        )
+        self._sync_thread.start()
+
+    def _on_platform_progress_sync_finished(
+        self, success, message, synced_count, total_count, platform_name
+    ):
+        """Handle platform progress sync completion."""
+        if success:
+            self._progress_dialog.show_result(
+                True,
+                f"Successfully synced progress for {synced_count} out of {total_count} {platform_name.title()} games.",
+            )
+        else:
+            self._progress_dialog.show_result(False, message)
+
+        self._sync_thread = None
+        # Refresh the cache table to show updated progress
+        self._refresh_cache_table()
+
     def load_settings(self, settings):
         """Load settings from the settings object.
 
@@ -716,3 +1117,63 @@ class RetroAchievementsPage(QWidget):
         settings = self._settings_manager.settings
         self.save_settings(settings)
         self._settings_manager.save_settings()
+
+
+class ProgressSyncThread(QThread):
+    """Thread for syncing user achievement progress."""
+
+    progress_updated = Signal(str, int, int, float, float)  # message, current, total, speed, bytes
+    finished = Signal(bool, str, int, int)  # success, message, synced_count, total_count
+
+    def __init__(self, settings, game_ids):
+        super().__init__()
+        self.settings = settings
+        self.game_ids = game_ids
+        self.logger = logging.getLogger(__name__)
+
+    def run(self):
+        """Run the progress sync operation."""
+        try:
+            ra_service = RetroAchievementsService(self.settings)
+            synced_count = 0
+            total_count = len(self.game_ids)
+            start_time = time.time()
+
+            # Get RA database to lookup game names
+            from pathlib import Path
+
+            from ...services.ra_database import RetroAchievementsDatabase
+
+            ra_db_path = Path("data/retroachievements.db")
+            ra_db = None
+            if ra_db_path.exists():
+                ra_db = RetroAchievementsDatabase(ra_db_path)
+
+            # Use optimized batch sync method
+            def progress_callback(current, total, message):
+                # Calculate speed (games per second)
+                elapsed = time.time() - start_time
+                games_per_second = current / max(elapsed, 0.1) if current > 0 else 0
+
+                # Update progress with speed info
+                self.progress_updated.emit(
+                    message,
+                    current,
+                    total,
+                    games_per_second,  # Speed as games per second
+                    float(current),  # Current count as bytes equivalent
+                )
+
+            # Use the optimized sync method (single API call + fast local processing)
+            sync_results = ra_service.sync_all_user_progress_optimized(
+                self.settings.ra_username, self.game_ids, progress_callback=progress_callback
+            )
+
+            synced_count = sync_results.get("synced", 0)
+
+            # Emit completion
+            self.finished.emit(True, "Progress sync completed", synced_count, total_count)
+
+        except Exception as e:
+            self.logger.error(f"Progress sync failed: {e}")
+            self.finished.emit(False, f"Progress sync failed: {str(e)}", 0, len(self.game_ids))

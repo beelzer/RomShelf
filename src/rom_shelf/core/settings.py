@@ -28,6 +28,16 @@ class Settings:
     retroachievements_api_key: str = ""
     platform_settings: dict[str, dict[str, Any]] = field(default_factory=dict)
 
+    @property
+    def ra_username(self) -> str:
+        """Alias for retroachievements_username."""
+        return self.retroachievements_username
+
+    @property
+    def ra_api_key(self) -> str:
+        """Alias for retroachievements_api_key."""
+        return self.retroachievements_api_key
+
     def to_dict(self) -> dict[str, Any]:
         """Convert settings to dictionary."""
         return {

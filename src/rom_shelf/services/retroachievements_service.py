@@ -51,7 +51,7 @@ class RetroAchievementsService:
         self._last_request_time = 0.0
         self._rate_limit_lock = Lock()
         self._console_lock = Lock()
-        self._min_request_interval = 2.0  # 2 seconds between requests
+        self._min_request_interval = 1.0  # 1 second between requests (optimized)
 
         # Progress callback for UI updates
         self._progress_callback: Callable | None = None
@@ -493,3 +493,290 @@ class RetroAchievementsService:
         """Clear all RetroAchievements caches."""
         self._db.clear_all_caches()
         self.logger.info("Cleared all RetroAchievements caches")
+
+    # User Achievement Progress Methods
+
+    def fetch_user_progress(
+        self, username: str, game_id: int, refresh: bool = False
+    ) -> dict | None:
+        """Fetch user's achievement progress for a game.
+
+        Args:
+            username: RetroAchievements username
+            game_id: Game ID
+            refresh: Force refresh from API instead of using cache
+
+        Returns:
+            Dictionary with user progress or None if failed
+        """
+        # Get settings for API key
+        if self._settings:
+            api_key = self._settings.ra_api_key
+        else:
+            settings_file = Path("data") / "settings.json"
+            if settings_file.exists():
+                settings = Settings.load(settings_file)
+                api_key = settings.ra_api_key
+            else:
+                self.logger.warning("No API key configured for user progress")
+                return None
+
+        if not api_key:
+            self.logger.warning("No API key configured for user progress")
+            return None
+
+        # Check cache first if not refreshing
+        if not refresh:
+            cached_progress = self._db.get_user_game_progress(username, game_id)
+            if cached_progress and (time.time() - cached_progress.get("last_updated", 0)) < 3600:
+                return cached_progress
+
+        try:
+            # API endpoint for user game progress
+            params = {"u": username, "y": api_key, "g": game_id}
+            result = self._make_api_request("API_GetGameInfoAndUserProgress", params)
+
+            if not result:
+                return None
+
+            # Parse the response - use NumAwardedToUser from the response
+            total_achievements = result.get("NumAchievements", 0)
+            earned_achievements = result.get("NumAwardedToUser", 0)
+            earned_hardcore = result.get("NumAwardedToUserHardcore", 0)
+
+            # Get achievements for detailed info
+            achievements = result.get("Achievements", {})
+
+            # Calculate total points
+            total_points = 0
+            earned_points = 0
+            earned_points_hardcore = 0
+
+            achievement_list = []
+            achievement_defs = []
+
+            for ach_id, ach_data in achievements.items():
+                points = int(ach_data.get("Points", 0))
+                total_points += points
+
+                # Check if earned - note the API doesn't return DateEarned for this endpoint
+                # We'll need a different endpoint for detailed user progress
+                # For now, we'll use the summary data
+
+                # Add achievement definition
+                achievement_defs.append(
+                    {
+                        "ID": int(ach_id),
+                        "Title": ach_data.get("Title", ""),
+                        "Description": ach_data.get("Description", ""),
+                        "Points": points,
+                        "TrueRatio": ach_data.get("TrueRatio", 0),
+                        "BadgeName": ach_data.get("BadgeName", ""),
+                        "DisplayOrder": ach_data.get("DisplayOrder", 0),
+                    }
+                )
+
+            # Use the completion percentages from the API
+            completion_str = result.get("UserCompletion", "0%").replace("%", "")
+            completion_hardcore_str = result.get("UserCompletionHardcore", "0%").replace("%", "")
+
+            try:
+                completion = float(completion_str)
+                completion_hardcore = float(completion_hardcore_str)
+            except ValueError:
+                completion = 0.0
+                completion_hardcore = 0.0
+
+            progress_data = {
+                "achievements_earned": earned_achievements,
+                "achievements_earned_hardcore": earned_hardcore,
+                "achievements_total": total_achievements,
+                "points_earned": earned_points,
+                "points_earned_hardcore": earned_points_hardcore,
+                "points_total": total_points,
+                "completion_percentage": round(completion, 1),
+                "completion_percentage_hardcore": round(completion_hardcore, 1),
+            }
+
+            # Update database
+            self._db.update_user_game_progress(username, game_id, progress_data)
+
+            # Optionally update achievement definitions
+            if achievement_defs:
+                self._db.update_achievement_definitions(game_id, achievement_defs)
+
+            return progress_data
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch user progress for game {game_id}: {e}")
+            return None
+
+    def fetch_user_recently_played(self, username: str, count: int = 10) -> list[dict] | None:
+        """Fetch user's recently played games.
+
+        Args:
+            username: RetroAchievements username
+            count: Number of games to fetch (max 50)
+
+        Returns:
+            List of recently played games or None if failed
+        """
+        # Get settings for API key
+        if self._settings:
+            api_key = self._settings.ra_api_key
+        else:
+            settings_file = Path("data") / "settings.json"
+            if settings_file.exists():
+                settings = Settings.load(settings_file)
+                api_key = settings.ra_api_key
+            else:
+                self.logger.warning("No API key configured")
+                return None
+
+        if not api_key:
+            self.logger.warning("No API key configured")
+            return None
+
+        try:
+            params = {"u": username, "y": api_key, "c": min(count, 50)}
+            result = self._make_api_request("API_GetUserRecentlyPlayedGames", params)
+            return result if isinstance(result, list) else []
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch recently played games for {username}: {e}")
+            return None
+
+    def sync_all_user_progress(
+        self, username: str, game_ids: list[int], progress_callback=None
+    ) -> dict:
+        """Sync all user progress for multiple games.
+
+        Args:
+            username: RetroAchievements username
+            game_ids: List of game IDs to sync
+            progress_callback: Optional callback for progress updates
+
+        Returns:
+            Dictionary with sync results
+        """
+        results = {"synced": 0, "failed": 0, "total": len(game_ids)}
+
+        for i, game_id in enumerate(game_ids):
+            if progress_callback:
+                progress_callback(i + 1, len(game_ids), f"Syncing game {game_id}")
+
+            progress = self.fetch_user_progress(username, game_id)
+            if progress:
+                results["synced"] += 1
+            else:
+                results["failed"] += 1
+
+            # Rate limiting between requests
+            self._enforce_rate_limit()
+
+        return results
+
+    def get_user_game_progress(self, username: str, game_id: int) -> dict | None:
+        """Get cached user game progress.
+
+        Args:
+            username: RetroAchievements username
+            game_id: Game ID
+
+        Returns:
+            Progress data or None if not cached
+        """
+        return self._db.get_user_game_progress(username, game_id)
+
+    def get_all_user_progress(self, username: str) -> list[dict]:
+        """Get all cached game progress for a user.
+
+        Args:
+            username: RetroAchievements username
+
+        Returns:
+            List of game progress dictionaries
+        """
+        return self._db.get_all_user_progress(username)
+
+    def sync_all_user_progress_optimized(
+        self, username: str, game_ids: list[int], progress_callback=None
+    ) -> dict:
+        """Optimized sync using user summary endpoint to get all data at once.
+
+        Args:
+            username: RetroAchievements username
+            game_ids: List of game IDs to sync
+            progress_callback: Optional callback for progress updates
+
+        Returns:
+            Dictionary with sync results
+        """
+        results = {"synced": 0, "failed": 0, "total": len(game_ids)}
+
+        try:
+            if progress_callback:
+                progress_callback(0, len(game_ids), "Fetching user summary...")
+
+            # Get comprehensive user summary (single API call)
+            summary_data = self._make_api_request("API_GetUserSummary", {"u": username})
+
+            if not summary_data:
+                self.logger.error(f"Failed to get user summary for {username}")
+                results["failed"] = len(game_ids)
+                return results
+
+            # Extract game progress from summary
+            recent_games = summary_data.get("RecentlyPlayedGames", [])
+
+            # Create a mapping of game_id to progress
+            game_progress_map = {}
+            for game in recent_games:
+                game_id = game.get("GameID")
+                if game_id:
+                    achievements_earned = game.get("NumAchieved", 0)
+                    achievements_total = game.get("MaxPossible", 0)
+
+                    progress_data = {
+                        "achievements_earned": achievements_earned,
+                        "achievements_total": achievements_total,
+                        "completion_percentage": (achievements_earned / achievements_total * 100)
+                        if achievements_total > 0
+                        else 0,
+                        "last_updated": time.time(),
+                    }
+                    game_progress_map[game_id] = progress_data
+
+            # Process each requested game
+            for i, game_id in enumerate(game_ids):
+                if progress_callback:
+                    progress_callback(i + 1, len(game_ids), f"Processing game {game_id}...")
+
+                if game_id in game_progress_map:
+                    # Update database with progress data
+                    self._db.update_user_game_progress(
+                        username, game_id, game_progress_map[game_id]
+                    )
+                    results["synced"] += 1
+                else:
+                    # Game not in recent games, might have 0 progress
+                    # Check if we need to fetch individual game data
+                    cached_progress = self._db.get_user_game_progress(username, game_id)
+                    if not cached_progress:
+                        # No cached data, mark as 0 progress
+                        zero_progress = {
+                            "achievements_earned": 0,
+                            "achievements_total": 0,  # We don't know total from summary
+                            "completion_percentage": 0,
+                            "last_updated": time.time(),
+                        }
+                        self._db.update_user_game_progress(username, game_id, zero_progress)
+                        results["synced"] += 1
+                    else:
+                        results["synced"] += 1
+
+        except Exception as e:
+            self.logger.error(f"Error in optimized sync: {e}")
+            results["failed"] = len(game_ids)
+
+        return results

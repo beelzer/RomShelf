@@ -130,6 +130,9 @@ class ROMTableModel(QAbstractTableModel):
         elif role == Qt.ItemDataRole.UserRole + 10:
             # Return RA game ID for achievement delegate
             return self._get_ra_game_id(entry)
+        elif role == Qt.ItemDataRole.UserRole + 11:
+            # Return user progress for achievement delegate
+            return self._get_ra_user_progress(entry)
 
         return None
 
@@ -206,9 +209,22 @@ class ROMTableModel(QAbstractTableModel):
             # Sort by name for actions column
             return entry.display_name.lower()
         elif key == "achievements":
-            # Sort by RA game ID (games with RA data first)
+            # Sort by completion percentage (highest completion first, then by name)
+            user_progress = self._get_ra_user_progress(entry)
             ra_id = self._get_ra_game_id(entry)
-            return (0 if ra_id else 1, entry.display_name.lower())
+
+            if not ra_id:
+                # No RA data - sort to bottom
+                return (999, entry.display_name.lower())
+            elif user_progress:
+                earned = user_progress.get("achievements_earned", 0)
+                total = user_progress.get("achievements_total", 0)
+                percentage = (earned / total * 100) if total > 0 else 0
+                # Sort by percentage (descending), then by name (ascending)
+                return (-percentage, entry.display_name.lower())
+            else:
+                # Has RA data but no progress data - treat as 0%
+                return (0, entry.display_name.lower())
         elif key == "name":
             return entry.display_name.lower()
         elif key == "size":
@@ -269,6 +285,39 @@ class ROMTableModel(QAbstractTableModel):
             if fingerprint and fingerprint.ra_game_id:
                 return fingerprint.ra_game_id
             return None
+        except Exception:
+            return None
+
+    def _get_ra_user_progress(self, entry: ROMEntry) -> dict | None:
+        """Get user's achievement progress for a ROM entry.
+
+        Returns dict with completion_percentage if available.
+        """
+        game_id = self._get_ra_game_id(entry)
+        if not game_id:
+            return None
+
+        try:
+            # Check if we have a configured username
+            from pathlib import Path
+
+            from ..core.settings import Settings
+
+            settings_file = Path("data") / "settings.json"
+            if not settings_file.exists():
+                return None
+
+            settings = Settings.load(settings_file)
+            if not settings.ra_username:
+                return None
+
+            # Only get cached progress - don't trigger API calls from the model
+            from ..services.ra_database import RetroAchievementsDatabase
+
+            ra_db = RetroAchievementsDatabase(Path("data/retroachievements.db"))
+            progress = ra_db.get_user_game_progress(settings.ra_username, game_id)
+
+            return progress
         except Exception:
             return None
 
