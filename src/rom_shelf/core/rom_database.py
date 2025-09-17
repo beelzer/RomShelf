@@ -18,7 +18,7 @@ from typing import Any
 from ..utils.name_cleaner import extract_rom_metadata
 
 # Database schema version
-DATABASE_VERSION = 4
+DATABASE_VERSION = 5
 
 
 class FingerprintStatus(Enum):
@@ -53,6 +53,12 @@ class ROMFingerprint:
     platform: str = ""
     region: str = ""
     revision: str = ""
+
+    # RetroAchievements data
+    ra_game_id: int | None = None
+    ra_hash: str | None = None
+    ra_title: str | None = None
+    ra_last_check: float = 0.0
 
     # Database metadata
     created_time: float = 0.0
@@ -103,7 +109,7 @@ class DatabaseConnectionPool:
             conn.execute("PRAGMA cache_size=10000")
             conn.execute("PRAGMA temp_store=MEMORY")
 
-            # Create tables
+            # Create metadata table
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS metadata (
@@ -113,43 +119,87 @@ class DatabaseConnectionPool:
                 """
             )
 
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS rom_fingerprints (
-                    file_key TEXT PRIMARY KEY,
-                    file_path TEXT NOT NULL,
-                    file_size INTEGER,
-                    modified_time REAL,
-                    md5_hash TEXT,
-                    header_hash TEXT,
-                    crc32 INTEGER,
-                    archive_path TEXT,
-                    internal_path TEXT,
-                    archive_modified_time REAL,
-                    platform TEXT,
-                    region TEXT,
-                    revision TEXT,
-                    created_time REAL,
-                    last_verified_time REAL,
-                    verification_count INTEGER,
-                    data_json TEXT
+            # Get current database version
+            cursor = conn.execute("SELECT value FROM metadata WHERE key = 'version'")
+            row = cursor.fetchone()
+            current_version = int(row[0]) if row else 0
+
+            # Create or migrate rom_fingerprints table
+            if current_version < 1:
+                # Create initial table
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS rom_fingerprints (
+                        file_key TEXT PRIMARY KEY,
+                        file_path TEXT NOT NULL,
+                        file_size INTEGER,
+                        modified_time REAL,
+                        md5_hash TEXT,
+                        header_hash TEXT,
+                        crc32 INTEGER,
+                        archive_path TEXT,
+                        internal_path TEXT,
+                        archive_modified_time REAL,
+                        platform TEXT,
+                        region TEXT,
+                        revision TEXT,
+                        created_time REAL,
+                        last_verified_time REAL,
+                        verification_count INTEGER,
+                        data_json TEXT
+                    )
+                    """
                 )
-                """
-            )
+                self.logger.info("Created initial rom_fingerprints table")
+
+            # Apply migrations based on version
+            if current_version < 5:
+                # Check if RA columns already exist
+                cursor = conn.execute("PRAGMA table_info(rom_fingerprints)")
+                columns = [col[1] for col in cursor.fetchall()]
+
+                # Add RA columns if they don't exist
+                if "ra_game_id" not in columns:
+                    conn.execute("ALTER TABLE rom_fingerprints ADD COLUMN ra_game_id INTEGER")
+                    self.logger.info("Added ra_game_id column")
+
+                if "ra_hash" not in columns:
+                    conn.execute("ALTER TABLE rom_fingerprints ADD COLUMN ra_hash TEXT")
+                    self.logger.info("Added ra_hash column")
+
+                if "ra_title" not in columns:
+                    conn.execute("ALTER TABLE rom_fingerprints ADD COLUMN ra_title TEXT")
+                    self.logger.info("Added ra_title column")
+
+                if "ra_last_check" not in columns:
+                    conn.execute(
+                        "ALTER TABLE rom_fingerprints ADD COLUMN ra_last_check REAL DEFAULT 0"
+                    )
+                    self.logger.info("Added ra_last_check column")
 
             # Create indexes for common queries
             conn.execute("CREATE INDEX IF NOT EXISTS idx_platform ON rom_fingerprints(platform)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_md5 ON rom_fingerprints(md5_hash)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_file_path ON rom_fingerprints(file_path)")
 
-            # Set database version
+            # Only create RA index if column exists
+            cursor = conn.execute("PRAGMA table_info(rom_fingerprints)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if "ra_game_id" in columns:
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_ra_game_id ON rom_fingerprints(ra_game_id)"
+                )
+
+            # Update database version
             conn.execute(
                 "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
                 ("version", str(DATABASE_VERSION)),
             )
 
             conn.commit()
-            self.logger.info(f"Database initialized at {self.db_path}")
+            self.logger.info(
+                f"Database initialized/migrated to version {DATABASE_VERSION} at {self.db_path}"
+            )
 
         finally:
             conn.close()
@@ -505,6 +555,32 @@ class ROMDatabase:
                 archive_path = str(file_path)
                 archive_modified_time = file_stat.st_mtime
 
+            # Lookup RetroAchievements data by MD5 hash
+            ra_game_id = None
+            ra_title = None
+            if md5_hash:
+                try:
+                    from ..services.ra_database import RetroAchievementsDatabase
+
+                    ra_db_path = Path("data/retroachievements.db")
+                    if ra_db_path.exists():
+                        ra_db = RetroAchievementsDatabase(ra_db_path)
+                        hash_info = ra_db.get_hash_info(md5_hash)
+                        if hash_info:
+                            ra_game_id = hash_info.get("game_id")
+                            ra_title = hash_info.get("game_title")
+                            self.logger.info(
+                                f"Found RA match for {file_path.name}: Game ID {ra_game_id}, Title: {ra_title}"
+                            )
+                        else:
+                            self.logger.debug(
+                                f"No RA match found for hash {md5_hash} from {file_path.name}"
+                            )
+                    else:
+                        self.logger.debug(f"RA database not found at {ra_db_path}")
+                except Exception as e:
+                    self.logger.error(f"Failed to lookup RA data: {e}", exc_info=True)
+
             # Create fingerprint
             fingerprint = ROMFingerprint(
                 file_path=str(file_path),
@@ -519,6 +595,10 @@ class ROMDatabase:
                 platform=platform,
                 region=region,
                 revision=revision,
+                ra_game_id=ra_game_id,
+                ra_hash=md5_hash if ra_game_id else None,
+                ra_title=ra_title,
+                ra_last_check=time.time() if ra_game_id else 0.0,
                 created_time=time.time(),
             )
 
@@ -749,9 +829,10 @@ class ROMDatabase:
                 md5_hash, header_hash, crc32,
                 archive_path, internal_path, archive_modified_time,
                 platform, region, revision,
+                ra_game_id, ra_hash, ra_title, ra_last_check,
                 created_time, last_verified_time, verification_count,
                 data_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 file_key,
@@ -767,6 +848,10 @@ class ROMDatabase:
                 fingerprint.platform,
                 fingerprint.region,
                 fingerprint.revision,
+                fingerprint.ra_game_id,
+                fingerprint.ra_hash,
+                fingerprint.ra_title,
+                fingerprint.ra_last_check,
                 fingerprint.created_time,
                 fingerprint.last_verified_time,
                 fingerprint.verification_count,
@@ -783,6 +868,9 @@ class ROMDatabase:
         Returns:
             ROMFingerprint object.
         """
+        # Get column names from row
+        columns = row.keys() if hasattr(row, "keys") else []
+
         return ROMFingerprint(
             file_path=row["file_path"],
             file_size=row["file_size"],
@@ -796,6 +884,10 @@ class ROMDatabase:
             platform=row["platform"],
             region=row["region"],
             revision=row["revision"],
+            ra_game_id=row["ra_game_id"] if "ra_game_id" in columns else None,
+            ra_hash=row["ra_hash"] if "ra_hash" in columns else None,
+            ra_title=row["ra_title"] if "ra_title" in columns else None,
+            ra_last_check=row["ra_last_check"] if "ra_last_check" in columns else 0.0,
             created_time=row["created_time"],
             last_verified_time=row["last_verified_time"],
             verification_count=row["verification_count"],

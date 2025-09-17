@@ -127,6 +127,9 @@ class ROMTableModel(QAbstractTableModel):
         elif role == Qt.ItemDataRole.UserRole + 1:
             # Return the ROM entry itself for custom delegates
             return entry
+        elif role == Qt.ItemDataRole.UserRole + 10:
+            # Return RA game ID for achievement delegate
+            return self._get_ra_game_id(entry)
 
         return None
 
@@ -146,6 +149,8 @@ class ROMTableModel(QAbstractTableModel):
         """Get display data for a ROM entry field."""
         if key == "actions":
             return ""  # Actions column is handled by custom delegate
+        elif key == "achievements":
+            return ""  # Achievements column is handled by custom delegate
         elif key == "name":
             return entry.display_name
         elif key == "size":
@@ -171,6 +176,11 @@ class ROMTableModel(QAbstractTableModel):
         """Get tooltip data for a ROM entry field."""
         if key == "actions":
             return "Action column"
+        elif key == "achievements":
+            ra_id = self._get_ra_game_id(entry)
+            if ra_id:
+                return "Click to open RetroAchievements page"
+            return "No RetroAchievements data"
         elif key == "name":
             tooltip_parts = [f"File: {entry.file_path}"]
             if entry.internal_path:
@@ -195,6 +205,10 @@ class ROMTableModel(QAbstractTableModel):
         if key == "actions":
             # Sort by name for actions column
             return entry.display_name.lower()
+        elif key == "achievements":
+            # Sort by RA game ID (games with RA data first)
+            ra_id = self._get_ra_game_id(entry)
+            return (0 if ra_id else 1, entry.display_name.lower())
         elif key == "name":
             return entry.display_name.lower()
         elif key == "size":
@@ -246,6 +260,17 @@ class ROMTableModel(QAbstractTableModel):
             return ""
         except Exception:
             return ""
+
+    def _get_ra_game_id(self, entry: ROMEntry) -> int | None:
+        """Get RetroAchievements game ID for a ROM entry."""
+        try:
+            rom_db = get_rom_database()
+            fingerprint = rom_db.get_fingerprint(entry.file_path, entry.internal_path)
+            if fingerprint and fingerprint.ra_game_id:
+                return fingerprint.ra_game_id
+            return None
+        except Exception:
+            return None
 
     def _format_file_size(self, size: int) -> str:
         """Format file size in human-readable format."""

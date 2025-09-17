@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QHeaderView, QMenu, QMessageBox, QTableView, QWidg
 from ...models.rom_table_model import ROMTableModel
 from ...platforms.core.base_platform import TableColumn
 from ...platforms.core.platform_registry import platform_registry
+from ..delegates.achievement_delegate import AchievementDelegate
 from ..delegates.hash_delegate import HashDelegate
 from ..delegates.language_delegate import LanguageDelegate
 from ..delegates.region_delegate import RegionDelegate
@@ -24,6 +25,7 @@ class ROMTableView(QTableView):
         """Initialize the ROM table view."""
         super().__init__(parent)
         self._rom_model: ROMTableModel | None = None
+        self._achievement_delegate = AchievementDelegate(self)
         self._hash_delegate = HashDelegate(self)
         self._region_delegate = RegionDelegate(self)
         self._language_delegate = LanguageDelegate(self)
@@ -84,6 +86,7 @@ class ROMTableView(QTableView):
                     TableColumn("language", "Language", 100),
                     TableColumn("version", "Version", 90),
                     TableColumn("size", "Size", 100),
+                    TableColumn("achievements", "RA", 40),  # RetroAchievements column
                 ]
             )
         else:
@@ -101,6 +104,7 @@ class ROMTableView(QTableView):
                         TableColumn("language", "Language", 100),
                         TableColumn("version", "Version", 90),
                         TableColumn("size", "Size", 100),
+                        TableColumn("achievements", "RA", 40),  # RetroAchievements column
                     ]
                 )
 
@@ -124,6 +128,9 @@ class ROMTableView(QTableView):
             elif column.key == "language":
                 print(f"[DEBUG] Setting language delegate for column {i}")
                 self.setItemDelegateForColumn(i, self._language_delegate)
+            elif column.key == "achievements":
+                print(f"[DEBUG] Setting achievement delegate for column {i}")
+                self.setItemDelegateForColumn(i, self._achievement_delegate)
 
             # Configure column sizing
             if column.key == "name":

@@ -13,9 +13,10 @@ from ..core.archive_processor import ArchiveProcessor
 from ..core.extension_handler import FileHandlingType, extension_registry
 
 # TODO: Replace with platform-specific multi-file handling
-from ..core.rom_database import FingerprintStatus, get_rom_database
+from ..core.rom_database import get_rom_database
 from ..models.rom_entry import ROMEntry
 from ..platforms.core.base_platform import BasePlatform
+from .retroachievements_service import RetroAchievementsService
 
 
 class ScanProgress:
@@ -54,9 +55,11 @@ class ROMScanningService:
         self._archive_processor = ArchiveProcessor()
         # TODO: Replace with platform-specific multi-file handling
         self._rom_database = get_rom_database()
+        self._ra_service = RetroAchievementsService()
         self._is_scanning = False
         self._should_stop = False
         self._progress_lock = threading.Lock()
+        self._ra_match_count = 0
 
         # Callbacks for UI communication
         self._progress_callback: Callable[[ScanProgress], None] | None = None
@@ -375,17 +378,49 @@ class ROMScanningService:
         """Create a ROM entry for a validated file."""
         try:
             # Get or create fingerprint in database
-            fingerprint_data = self._rom_database.get_or_create_fingerprint(
-                str(file_path), internal_path
-            )
+            fingerprint = self._rom_database.get_fingerprint(file_path, internal_path)
 
-            if fingerprint_data["status"] == FingerprintStatus.ERROR:
-                return None
+            # Create new fingerprint if needed
+            if not fingerprint:
+                fingerprint = self._rom_database.create_rom_fingerprint(
+                    file_path, internal_path, platform.id
+                )
+                self._rom_database.add_fingerprint(fingerprint)
+
+            # Check if we need to look up RA data
+            if fingerprint and not fingerprint.ra_game_id:
+                # Only check RA if we haven't checked recently (within 24 hours)
+                current_time = time.time()
+                if current_time - fingerprint.ra_last_check > 86400:  # 24 hours
+                    # Try to identify ROM in RetroAchievements
+                    ra_info = self._ra_service.identify_rom(
+                        file_path,
+                        platform.id,
+                        file_path.stem,  # Use filename without extension as display name
+                    )
+
+                    if ra_info:
+                        # Update fingerprint with RA data
+                        fingerprint.ra_game_id = ra_info["game_id"]
+                        fingerprint.ra_hash = ra_info["hash"]
+                        fingerprint.ra_title = ra_info["title"]
+                        fingerprint.ra_last_check = current_time
+                        self._rom_database.add_fingerprint(fingerprint)
+
+                        self.logger.info(
+                            f"Matched ROM to RA game: {ra_info['title']} (ID: {ra_info['game_id']})"
+                        )
+
+                        # Update match count
+                        with self._progress_lock:
+                            self._ra_match_count += 1
+                    else:
+                        # Mark that we checked but found no match
+                        fingerprint.ra_last_check = current_time
+                        self._rom_database.add_fingerprint(fingerprint)
 
             # Parse the ROM file
-            rom_entry = platform.parse_rom_file(
-                file_path, fingerprint_data["fingerprint"], internal_path
-            )
+            rom_entry = platform.parse_rom_file(file_path, fingerprint.md5_hash, internal_path)
 
             if rom_entry:
                 self.logger.debug(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
@@ -401,5 +436,5 @@ class ROMScanningService:
         return {
             "is_scanning": self._is_scanning,
             "database_entries": len(self._rom_database.fingerprints) if self._rom_database else 0,
-            "max_workers": self._max_workers,
+            "ra_matches": self._ra_match_count,
         }

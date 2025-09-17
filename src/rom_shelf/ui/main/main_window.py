@@ -384,7 +384,36 @@ class MainWindow(QMainWindow):
         if not self._toolbar_manager:
             return
 
-        # Throttle updates - only update UI every 5 files to prevent freezing
+        # Check if this is a RetroAchievements update
+        if hasattr(progress, "ra_event_type") and progress.ra_event_type:
+            if progress.ra_event_type == "ra_update":
+                # Downloading RA database
+                self._toolbar_manager.update_scan_details(
+                    operation=progress.ra_message,
+                    detail_message=progress.ra_message,
+                    message_type="info",
+                )
+            elif progress.ra_event_type == "ra_download":
+                # Download progress with speed
+                self._toolbar_manager.update_download_progress(
+                    progress.ra_download_bytes,
+                    progress.ra_download_total,
+                    progress.ra_download_speed,
+                )
+            elif progress.ra_event_type == "ra_complete":
+                # RA database download complete
+                self._toolbar_manager.update_scan_details(
+                    detail_message=progress.ra_message, message_type="success"
+                )
+            elif progress.ra_event_type == "ra_match":
+                # Found an RA match
+                self._toolbar_manager.increment_ra_matches()
+                self._toolbar_manager.update_scan_details(
+                    detail_message=f"Matched: {progress.ra_message}", message_type="success"
+                )
+            return
+
+        # Throttle regular updates - only update UI every 5 files to prevent freezing
         should_update_ui = (
             progress.files_processed == 1  # First file
             or progress.files_processed % 5 == 0  # Every 5 files
@@ -425,11 +454,27 @@ class MainWindow(QMainWindow):
             if self._current_progress_percentage == 0:  # Only set indeterminate once
                 self._toolbar_manager.set_progress_indeterminate(True)
 
-        # Update status message
-        if progress.current_file and progress.total_files > 0:
-            file_name = progress.current_file.split("/")[-1].split("\\")[
-                -1
-            ]  # Get just the filename
+        # Update detailed scan information
+        if progress.current_file:
+            file_name = progress.current_file.split("/")[-1].split("\\")[-1]
+        else:
+            file_name = None
+
+        # Create operation string with platform if available
+        operation = "Scanning ROM files"
+        if hasattr(progress, "current_platform") and progress.current_platform:
+            operation = f"Scanning {progress.current_platform}"
+
+        self._toolbar_manager.update_scan_details(
+            operation=operation,
+            current_file=progress.current_file,
+            files_processed=progress.files_processed,
+            total_files=progress.total_files,
+            roms_found=progress.rom_entries_found,
+        )
+
+        # Update status message (compact view)
+        if file_name and progress.total_files > 0:
             self._toolbar_manager.update_status(
                 f"Scanning: {file_name} ({progress.files_processed}/{progress.total_files})"
             )

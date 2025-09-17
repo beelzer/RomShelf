@@ -11,6 +11,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from ..models.rom_entry import ROMEntry
 from ..platforms.core.base_platform import BasePlatform
+from ..services.retroachievements_service import RetroAchievementsService
 from .archive_processor import ArchiveProcessor
 from .extension_handler import FileHandlingType, extension_registry
 
@@ -24,9 +25,18 @@ class ScanProgress:
     def __init__(self) -> None:
         """Initialize scan progress."""
         self.current_file = ""
+        self.current_platform = ""  # Current platform being scanned
         self.files_processed = 0
         self.total_files = 0
         self.rom_entries_found = 0
+        # RetroAchievements specific progress
+        self.ra_event_type = ""  # 'ra_update', 'ra_complete', 'ra_match', 'ra_download'
+        self.ra_message = ""  # RA-specific message
+        self.ra_match_count = 0  # Number of RA matches found
+        # Download progress
+        self.ra_download_bytes = 0
+        self.ra_download_total = 0
+        self.ra_download_speed = 0.0
 
 
 class ROMScanner(QObject):
@@ -45,6 +55,21 @@ class ROMScanner(QObject):
         self._archive_processor = ArchiveProcessor()
         # Multi-file validation now handled by platforms
         self._rom_database = get_rom_database()
+
+        # Load settings for RA service
+        from pathlib import Path as PathLib
+
+        from ..core.settings import Settings
+
+        settings_file = PathLib.home() / ".romshelf" / "settings.json"
+        if not settings_file.exists():
+            settings_file = PathLib("data") / "settings.json"
+
+        settings = None
+        if settings_file.exists():
+            settings = Settings.load(settings_file)
+
+        self._ra_service = RetroAchievementsService(settings)
         self._is_scanning = False
         self._should_stop = False
         self._progress_lock = threading.Lock()
@@ -118,6 +143,41 @@ class ROMScanner(QObject):
             self._is_scanning = False
             self._archive_processor.cleanup()
 
+    def _handle_ra_progress(self, event_type: str, data: dict) -> None:
+        """Handle progress updates from RetroAchievements service.
+
+        Args:
+            event_type: Type of RA event ('ra_update', 'ra_complete', 'ra_match', 'ra_download')
+            data: Event data dictionary
+        """
+        progress = ScanProgress()
+        progress.ra_event_type = event_type
+
+        if event_type == "ra_download":
+            # Download progress
+            progress.ra_download_bytes = data.get("bytes", 0)
+            progress.ra_download_total = data.get("total", 0)
+            progress.ra_download_speed = data.get("speed", 0)
+        elif event_type == "ra_match":
+            # Match found
+            progress.ra_message = data.get("title", "")
+        else:
+            # Update or complete
+            progress.ra_message = data.get("message", "")
+
+        self.progress_updated.emit(progress)
+
+    def _emit_ra_match(self, title: str) -> None:
+        """Emit a RetroAchievements match event.
+
+        Args:
+            title: Title of the matched game
+        """
+        progress = ScanProgress()
+        progress.ra_event_type = "ra_match"
+        progress.ra_message = title
+        self.progress_updated.emit(progress)
+
     def stop_scan(self) -> None:
         """Stop the current scan."""
         self._should_stop = True
@@ -146,9 +206,21 @@ class ROMScanner(QObject):
 
             file_entries: list[ROMEntry] = []
 
-            # Thread-safe progress update
+            # Thread-safe progress update with platform info
             with self._progress_lock:
                 progress.current_file = str(file_path)
+                # Set platform name from the first config for this file
+                if file_path in platform_file_map and platform_file_map[file_path]:
+                    platform_config = platform_file_map[file_path][0]
+                    platform_id = platform_config.get("platform", "")
+                    # Try to get display name
+                    from ..platforms.core.platform_registry import platform_registry
+
+                    platform_obj = platform_registry.get_platform(platform_id)
+                    if platform_obj:
+                        progress.current_platform = platform_obj.name
+                    else:
+                        progress.current_platform = platform_id
                 progress.files_processed += 1
                 self.progress_updated.emit(progress)
 
@@ -255,7 +327,30 @@ class ROMScanner(QObject):
                 # Verify fingerprint is still valid
                 status = self._rom_database.verify_fingerprint(fingerprint)
                 if status == FingerprintStatus.VALID:
-                    # File unchanged, skip processing
+                    # File unchanged, but check if we need to update RA data
+                    if not fingerprint.ra_game_id and fingerprint.md5_hash:
+                        # Try to update with RA data if not present
+                        try:
+                            from ..services.ra_database import RetroAchievementsDatabase
+
+                            ra_db_path = Path("data/retroachievements.db")
+                            if ra_db_path.exists():
+                                ra_db = RetroAchievementsDatabase(ra_db_path)
+                                hash_info = ra_db.get_hash_info(fingerprint.md5_hash)
+                                if hash_info:
+                                    # Update the fingerprint with RA data
+                                    fingerprint.ra_game_id = hash_info.get("game_id")
+                                    fingerprint.ra_title = hash_info.get("game_title")
+                                    fingerprint.ra_hash = fingerprint.md5_hash
+                                    fingerprint.ra_last_check = time.time()
+                                    # Save the updated fingerprint
+                                    self._rom_database.add_fingerprint(fingerprint)
+                                    self.logger.info(
+                                        f"Updated RA data for {file_path.name}: Game ID {fingerprint.ra_game_id}"
+                                    )
+                        except Exception as e:
+                            self.logger.debug(f"Failed to update RA data: {e}")
+
                     self.logger.debug(f"Skipping unchanged file: {file_path.name}")
                     return False  # Don't process this file
                 elif status in [FingerprintStatus.CHANGED, FingerprintStatus.CORRUPTED]:
@@ -267,6 +362,9 @@ class ROMScanner(QObject):
                 file_path, internal_path=internal_path, platform=platform_id
             )
 
+            # Check RetroAchievements for new fingerprints
+            self._check_retroachievements(new_fingerprint, file_path, platform_id)
+
             # Store fingerprint in database
             self._rom_database.add_fingerprint(new_fingerprint)
             return True  # Process this file
@@ -275,6 +373,49 @@ class ROMScanner(QObject):
             self.logger.error(f"Database error for {file_path}: {e}")
             # Continue processing even if database fails
             return True  # Process on error to be safe
+
+    def _check_retroachievements(self, fingerprint, file_path: Path, platform_id: str) -> None:
+        """Check RetroAchievements for a ROM file.
+
+        Args:
+            fingerprint: ROM fingerprint object
+            file_path: Path to ROM file
+            platform_id: Platform identifier
+        """
+        # Skip if already has RA data or was recently checked
+        if fingerprint.ra_game_id or (time.time() - fingerprint.ra_last_check < 86400):
+            return
+
+        try:
+            # Set up progress callback for RA service
+            self._ra_service.set_progress_callback(self._handle_ra_progress)
+
+            # Try to identify ROM in RetroAchievements
+            # The RA service has its own rate limiting and thread safety
+            ra_info = self._ra_service.identify_rom(
+                file_path,
+                platform_id,
+                file_path.stem,  # Use filename without extension as display name
+            )
+
+            if ra_info:
+                # Update fingerprint with RA data
+                fingerprint.ra_game_id = ra_info["game_id"]
+                fingerprint.ra_hash = ra_info["hash"]
+                fingerprint.ra_title = ra_info["title"]
+                fingerprint.ra_last_check = time.time()
+
+                self.logger.info(
+                    f"Matched ROM to RA game: {ra_info['title']} (ID: {ra_info['game_id']})"
+                )
+            else:
+                # Mark that we checked but found no match
+                fingerprint.ra_last_check = time.time()
+
+        except Exception as e:
+            self.logger.debug(f"RA check failed for {file_path}: {e}")
+            # Mark as checked to avoid repeated failures
+            fingerprint.ra_last_check = time.time()
 
     def _collect_files(self, directory: Path, scan_subdirectories: bool) -> list[Path]:
         """Collect all files in directory."""
