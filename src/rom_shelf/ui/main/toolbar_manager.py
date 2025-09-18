@@ -4,9 +4,15 @@ import logging
 
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMainWindow, QMenuBar, QProgressBar, QStatusBar, QToolBar
-
-from ..widgets.scan_progress_widget import ScanProgressWidget
+from PySide6.QtWidgets import (
+    QLabel,
+    QMainWindow,
+    QMenuBar,
+    QProgressBar,
+    QPushButton,
+    QStatusBar,
+    QToolBar,
+)
 
 
 class ToolbarManager(QObject):
@@ -19,7 +25,8 @@ class ToolbarManager(QObject):
         self._main_window = main_window
         self._status_bar: QStatusBar | None = None
         self._progress_bar: QProgressBar | None = None
-        self._progress_widget: ScanProgressWidget | None = None
+        self._progress_label: QLabel | None = None
+        self._expand_button: QPushButton | None = None
         self._ra_match_count = 0
 
     def create_main_toolbar(self, refresh_callback, settings_callback) -> QToolBar:
@@ -79,14 +86,7 @@ class ToolbarManager(QObject):
         self._status_bar.setSizeGripEnabled(False)
         self._main_window.setStatusBar(self._status_bar)
 
-        # Create expandable progress widget
-        self._progress_widget = ScanProgressWidget(self._status_bar)
-        self._progress_widget.setVisible(False)
-
-        # Add progress widget to status bar (takes full width when visible)
-        self._status_bar.addWidget(self._progress_widget, 1)  # Stretch factor 1
-
-        # Create old-style progress bar for compatibility (hidden by default)
+        # Create compact progress bar for status bar
         self._progress_bar = QProgressBar()
         self._progress_bar.setMinimum(0)
         self._progress_bar.setMaximum(100)
@@ -95,23 +95,43 @@ class ToolbarManager(QObject):
         self._progress_bar.setFixedSize(180, 20)
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setFormat("%p%")
-        self._progress_bar.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Keep old progress bar for fallback
-        self._status_bar.addPermanentWidget(self._progress_bar, 0)
+        # Progress label
+        self._progress_label = QLabel("")
+        self._progress_label.setVisible(False)
+
+        # Button to show/hide scan details dock
+        self._expand_button = QPushButton("Show Details")
+        self._expand_button.setFixedHeight(20)
+        self._expand_button.setVisible(False)
+        self._expand_button.clicked.connect(self._toggle_scan_dock)
+
+        # Add widgets to status bar
+        self._status_bar.addPermanentWidget(self._progress_label)
+        self._status_bar.addPermanentWidget(self._progress_bar)
+        self._status_bar.addPermanentWidget(self._expand_button)
 
         # Default status message
         self._status_bar.showMessage("Ready")
         return self._status_bar
 
+    def _toggle_scan_dock(self):
+        """Toggle the scan progress dock visibility."""
+        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
+            dock = self._main_window._scan_dock
+            if dock.isVisible():
+                dock.hide()
+                self._expand_button.setText("Show Details")
+            else:
+                dock.show()
+                self._expand_button.setText("Hide Details")
+
     def update_status(self, message: str) -> None:
         """Update the status bar message."""
         if self._status_bar:
-            # If progress widget is visible, update it instead
-            if self._progress_widget and self._progress_widget.isVisible():
-                self._progress_widget.update_status(message)
-            else:
-                self._status_bar.showMessage(message)
+            # Always show regular status messages in the status bar
+            # The progress widget is only for scan-related messages
+            self._status_bar.showMessage(message)
 
     def apply_font_settings(self, font) -> None:
         """Apply font settings to toolbar components."""
@@ -125,71 +145,57 @@ class ToolbarManager(QObject):
 
     def show_progress_bar(self) -> None:
         """Show the progress bar in the status bar."""
-        # Hide status message when showing progress
-        if self._status_bar:
-            self._status_bar.clearMessage()
-
-        # Show expandable progress widget
-        if self._progress_widget:
-            self._progress_widget.clear()
-            self._progress_widget.setVisible(True)
-            self._ra_match_count = 0
-
-        # Keep old progress bar hidden
+        # Show progress components
         if self._progress_bar:
-            self._progress_bar.setVisible(False)
+            self._progress_bar.setValue(0)
+            self._progress_bar.setVisible(True)
+        if self._progress_label:
+            self._progress_label.setText("Scanning...")
+            self._progress_label.setVisible(True)
+        if self._expand_button:
+            self._expand_button.setVisible(True)
+
+        # Show and clear dock if available
+        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
+            self._main_window._scan_dock.clear()
+            self._main_window._scan_dock.show()
+            self._expand_button.setText("Hide Details")
+
+        self._ra_match_count = 0
 
     def hide_progress_bar(self) -> None:
         """Hide the progress bar in the status bar."""
-        if self._progress_widget:
-            self._progress_widget.set_completed()
-            # Don't automatically hide - let user close it or keep it for history
-            # Widget remains accessible until user collapses and a new scan starts
+        # Mark scan as completed in dock
+        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
+            self._main_window._scan_dock.set_completed()
+            # Don't auto-hide dock - let user close it
 
+        # Hide progress bar but keep button visible
         if self._progress_bar:
             self._progress_bar.setVisible(False)
+        if self._progress_label:
+            self._progress_label.setVisible(False)
 
     def update_progress(self, value: int, message: str = "") -> None:
         """Update progress bar value and optionally the status message."""
-        # Update expandable widget
-        if self._progress_widget and self._progress_widget.isVisible():
-            self._progress_widget.set_progress(value)
-            if message:
-                self._progress_widget.update_status(message)
-
-        # Keep old progress bar logic for compatibility
+        # Update progress bar
         if self._progress_bar and self._progress_bar.isVisible():
             if self._progress_bar.maximum() == 0:
                 self._progress_bar.setRange(0, 100)
             clamped_value = min(max(value, 0), 100)
-            current_value = self._progress_bar.value()
-            self.logger.debug(
-                f"ProgressBar: Setting value from {current_value} to {clamped_value}%"
-            )
             self._progress_bar.setValue(clamped_value)
-            self._progress_bar.repaint()
 
-        if message and self._status_bar and not self._progress_widget:
-            self._status_bar.showMessage(message)
+        # Update label if message provided
+        if message and self._progress_label:
+            self._progress_label.setText(message)
 
     def set_progress_indeterminate(self, indeterminate: bool = True) -> None:
         """Set progress bar to indeterminate mode."""
-        # Update expandable widget
-        if self._progress_widget and self._progress_widget.isVisible():
-            self._progress_widget.set_indeterminate(indeterminate)
-
-        # Keep old logic for compatibility
         if self._progress_bar and self._progress_bar.isVisible():
-            self.logger.debug(f"ProgressBar: Setting indeterminate mode to {indeterminate}")
             if indeterminate:
                 self._progress_bar.setRange(0, 0)
             else:
                 self._progress_bar.setRange(0, 100)
-                current_value = self._progress_bar.value()
-                self.logger.debug(
-                    f"ProgressBar: Set to determinate mode (0-100, preserving value={current_value})"
-                )
-            self._progress_bar.repaint()
 
     def update_scan_details(
         self,
@@ -214,33 +220,34 @@ class ToolbarManager(QObject):
             detail_message: Detailed message to add to log
             message_type: Type of detail message ('info', 'success', 'warning', 'error')
         """
-        if not self._progress_widget or not self._progress_widget.isVisible():
+        # Update dock if available
+        if not hasattr(self._main_window, "_scan_dock") or not self._main_window._scan_dock:
             return
 
-        if operation:
-            self._progress_widget.update_operation(operation)
-
-        if current_file is not None:
-            self._progress_widget.update_current_file(current_file)
+        dock = self._main_window._scan_dock
 
         if files_processed is not None and total_files is not None:
-            self._progress_widget.update_file_progress(files_processed, total_files)
+            dock.update_file_progress(files_processed, total_files)
+            # Update progress bar percentage
+            if total_files > 0:
+                percentage = int((files_processed / total_files) * 100)
+                self.update_progress(percentage)
 
         if roms_found is not None:
-            self._progress_widget.update_rom_count(roms_found)
+            dock.update_rom_count(roms_found)
 
         if ra_matches is not None:
             self._ra_match_count = ra_matches
-            self._progress_widget.update_ra_matches(ra_matches)
+            dock.update_ra_matches(ra_matches)
 
         if detail_message:
-            self._progress_widget.add_detail_message(detail_message, message_type)
+            dock.add_detail_message(detail_message, message_type)
 
     def increment_ra_matches(self):
         """Increment the RetroAchievements match counter."""
         self._ra_match_count += 1
-        if self._progress_widget and self._progress_widget.isVisible():
-            self._progress_widget.update_ra_matches(self._ra_match_count)
+        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
+            self._main_window._scan_dock.update_ra_matches(self._ra_match_count)
 
     def update_download_progress(
         self, bytes_downloaded: int, total_bytes: int = 0, speed_bps: float = 0
@@ -252,5 +259,4 @@ class ToolbarManager(QObject):
             total_bytes: Total size in bytes (0 if unknown)
             speed_bps: Download speed in bytes per second
         """
-        if self._progress_widget and self._progress_widget.isVisible():
-            self._progress_widget.update_download_progress(bytes_downloaded, total_bytes, speed_bps)
+        # Download progress tracking removed - not currently used

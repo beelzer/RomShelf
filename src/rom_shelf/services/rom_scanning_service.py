@@ -380,6 +380,9 @@ class ROMScanningService:
             # Get or create fingerprint in database
             fingerprint = self._rom_database.get_fingerprint(file_path, internal_path)
 
+            # Track if this is a new ROM (not in database)
+            is_new_rom = fingerprint is None
+
             # Create new fingerprint if needed
             if not fingerprint:
                 fingerprint = self._rom_database.create_rom_fingerprint(
@@ -424,6 +427,8 @@ class ROMScanningService:
 
             if rom_entry:
                 self.logger.debug(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
+                # Add a flag to indicate if this ROM is new to the database
+                rom_entry.is_new_to_database = is_new_rom
 
             return rom_entry
 

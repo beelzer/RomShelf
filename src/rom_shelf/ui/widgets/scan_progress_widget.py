@@ -66,6 +66,9 @@ class ScanProgressWidget(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
+        # Set a fixed height for the widget when collapsed
+        self.setMaximumHeight(30)  # Status bar height
+
         # Container widget that holds all content with proper margins
         container = QWidget()
         container_layout = QVBoxLayout(container)
@@ -242,11 +245,19 @@ class ScanProgressWidget(QWidget):
 
         if self._expanded:
             self._expanded_height = self._calculate_expanded_height()
+            # When expanding, don't change the main widget height
+            # Just show/hide the detail container
+            self._detail_container.setVisible(True)
+            self._detail_container.setFixedHeight(self._expanded_height)
+            # Remove maximum height restriction when expanded
+            self.setMaximumHeight(QWIDGETSIZE_MAX)
+        else:
+            # When collapsing, hide details and restore fixed height
+            self._detail_container.setVisible(False)
+            self._detail_container.setFixedHeight(0)
+            # Restore the fixed height for status bar
+            self.setMaximumHeight(30)
 
-        start_height = max(self._detail_container.height(), 0)
-        end_height = self._expanded_height if self._expanded else 0
-
-        self._start_height_animation(start_height, end_height)
         self.expand_toggled.emit(self._expanded)
 
     def _start_height_animation(self, start_height: int, end_height: int) -> None:

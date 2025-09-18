@@ -19,6 +19,7 @@ from ...platforms.core.platform_registry import platform_registry
 from ...services import ServiceContainer
 from ..settings import SettingsDialog
 from ..themes import get_theme_manager
+from ..widgets.scan_progress_dock import ScanProgressDock
 from .platform_tree import PlatformTreeWidget
 from .rom_table_view import ROMTableView
 from .search_handler import SearchHandler
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self._search_handler: SearchHandler | None = None
         self._toolbar_manager: ToolbarManager | None = None
         self._rom_model: ROMTableModel | None = None
+        self._scan_dock: ScanProgressDock | None = None
 
         # Scanner thread
         self._scanner_thread: ROMScannerThread | None = None
@@ -98,6 +100,10 @@ class MainWindow(QMainWindow):
 
         self._toolbar_manager.create_menu_bar(self._start_rom_scan, self._open_settings)
         self._toolbar_manager.create_status_bar()
+
+        # Create scan progress dock widget
+        self._scan_dock = ScanProgressDock(self)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self._scan_dock)
 
         # Hide menu bar by default - show on Alt press
         self.menuBar().setVisible(False)
@@ -305,6 +311,13 @@ class MainWindow(QMainWindow):
             self._scanner_thread.quit()
             self._scanner_thread.wait()
 
+        # Initialize change counters
+        self._new_rom_count = 0
+        self._existing_rom_count = 0
+        self._roms_by_platform = {}
+        self._platforms_logged = set()
+        self._ra_matches_by_platform = {}
+
         # Clear existing ROMs
         self.clear_rom_entries()
 
@@ -342,7 +355,7 @@ class MainWindow(QMainWindow):
             self._toolbar_manager.show_progress_bar()
 
             # Log the platforms being scanned
-            if self._toolbar_manager._progress_widget:
+            if self._scan_dock:
                 platform_names = []
                 for config in platform_configs:
                     platform = config.get("platform", None)
@@ -355,13 +368,11 @@ class MainWindow(QMainWindow):
 
                 if platform_names:
                     unique_platforms = sorted(set(platform_names))
-                    self._toolbar_manager._progress_widget.add_detail_message(
+                    self._scan_dock.add_detail_message(
                         f"Starting scan of {len(unique_platforms)} platforms: {', '.join(unique_platforms)}",
                         "info",
                     )
-                    self._toolbar_manager._progress_widget.add_detail_message(
-                        "Scanning directories...", "info"
-                    )
+                    self._scan_dock.add_detail_message("Scanning directories...", "info")
 
         # Start scanning
         self._scanner_thread.start()
@@ -373,33 +384,26 @@ class MainWindow(QMainWindow):
         """Handle a ROM being found during scan."""
         self.logger.debug(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
 
-        # Track ROMs by platform
-        if not hasattr(self, "_roms_by_platform"):
-            self._roms_by_platform = {}
-            self._platforms_logged = set()  # Track which platforms we've logged
-            self._ra_matches_by_platform = {}  # Track RA matches by platform
-            self._new_rom_count = 0
-            self._existing_rom_count = 0
-            # Store existing ROM paths at start of scan
-            if hasattr(self, "_rom_table_model") and hasattr(self._rom_table_model, "_rom_entries"):
-                self._existing_rom_paths = {
-                    (e.file_path, e.internal_path) for e in self._rom_table_model._rom_entries
-                }
-            else:
-                self._existing_rom_paths = set()
+        # Check if this is a new ROM based on database flag
+        is_new = getattr(rom_entry, "is_new_to_database", False)
 
-        # Check if this is a new or existing ROM
-        rom_key = (rom_entry.file_path, rom_entry.internal_path)
-        if hasattr(self, "_existing_rom_paths"):
-            if rom_key not in self._existing_rom_paths:
+        if is_new:
+            if hasattr(self, "_new_rom_count"):
                 self._new_rom_count += 1
             else:
+                self._new_rom_count = 1
+        else:
+            if hasattr(self, "_existing_rom_count"):
                 self._existing_rom_count += 1
-            # Update the widget in real-time
-            if self._toolbar_manager and self._toolbar_manager._progress_widget:
-                self._toolbar_manager._progress_widget.update_scan_changes(
-                    new=self._new_rom_count, existing=self._existing_rom_count
-                )
+            else:
+                self._existing_rom_count = 1
+
+        # Update the dock widget in real-time
+        if self._scan_dock:
+            self._scan_dock.update_scan_changes(
+                new=getattr(self, "_new_rom_count", 0),
+                existing=getattr(self, "_existing_rom_count", 0),
+            )
 
         # Get platform name
         platform_name = getattr(rom_entry, "platform_name", rom_entry.platform_id)
@@ -431,12 +435,10 @@ class MainWindow(QMainWindow):
         self._rom_log_count += 1
 
         # Log when we encounter a new platform for the first time
-        if self._toolbar_manager and self._toolbar_manager._progress_widget:
+        if self._scan_dock:
             if platform_name not in self._platforms_logged:
                 self._platforms_logged.add(platform_name)
-                self._toolbar_manager._progress_widget.add_detail_message(
-                    f"Found ROMs for {platform_name}", "info"
-                )
+                self._scan_dock.add_detail_message(f"Found ROMs for {platform_name}", "info")
 
         self.add_rom_entries([rom_entry])
 
@@ -444,36 +446,26 @@ class MainWindow(QMainWindow):
         """Handle scan completion."""
         self.logger.info(f"Scan completed. Found {len(all_entries)} total ROMs.")
 
-        # Track changes compared to existing ROMs
-        new_count = 0
-        existing_count = 0
-        if hasattr(self, "_rom_table_model") and hasattr(self._rom_table_model, "_rom_entries"):
-            existing_paths = {
-                (e.file_path, e.internal_path) for e in self._rom_table_model._rom_entries
-            }
-            new_paths = {(e.file_path, e.internal_path) for e in all_entries}
-            new_count = len(new_paths - existing_paths)
-            existing_count = len(new_paths & existing_paths)
-            # For now, we'll just count new and existing ROMs. Modified and removed tracking would require more sophisticated change detection
+        # Use the counts we've been tracking during the scan
+        # Don't recalculate here as the table has already been cleared
+        new_count = getattr(self, "_new_rom_count", 0)
+        existing_count = getattr(self, "_existing_rom_count", 0)
 
-        if self._toolbar_manager:
-            # Update change statistics
-            if self._toolbar_manager._progress_widget:
-                self._toolbar_manager._progress_widget.update_scan_changes(
-                    new=new_count, modified=0, removed=0, existing=existing_count
-                )
+        if self._scan_dock:
+            # Update change statistics with final counts
+            self._scan_dock.update_scan_changes(
+                new=new_count, modified=0, removed=0, existing=existing_count
+            )
 
             # Add final summary
-            if self._toolbar_manager._progress_widget and hasattr(self, "_roms_by_platform"):
-                self._toolbar_manager._progress_widget.add_detail_message(
+            if hasattr(self, "_roms_by_platform"):
+                self._scan_dock.add_detail_message(
                     "━" * 50,  # Separator line
                     "info",
                 )
 
                 # Platform breakdown
-                self._toolbar_manager._progress_widget.add_detail_message(
-                    "SCAN COMPLETE - Platform Summary:", "success"
-                )
+                self._scan_dock.add_detail_message("SCAN COMPLETE - Platform Summary:", "success")
 
                 total_ra_matches = 0
                 for platform, count in sorted(self._roms_by_platform.items()):
@@ -482,23 +474,23 @@ class MainWindow(QMainWindow):
 
                     # Show RA match info if any matches found
                     if ra_count > 0:
-                        self._toolbar_manager._progress_widget.add_detail_message(
+                        self._scan_dock.add_detail_message(
                             f"  • {platform}: {count} ROM{'s' if count != 1 else ''} ({ra_count} with achievements)",
                             "info",
                         )
                     else:
-                        self._toolbar_manager._progress_widget.add_detail_message(
+                        self._scan_dock.add_detail_message(
                             f"  • {platform}: {count} ROM{'s' if count != 1 else ''}", "info"
                         )
 
-                self._toolbar_manager._progress_widget.add_detail_message(
+                self._scan_dock.add_detail_message(
                     f"Total: {len(all_entries)} ROMs found", "success"
                 )
 
                 # Show RetroAchievements match summary if any
                 if total_ra_matches > 0:
                     match_percentage = (total_ra_matches / len(all_entries)) * 100
-                    self._toolbar_manager._progress_widget.add_detail_message(
+                    self._scan_dock.add_detail_message(
                         f"RetroAchievements: {total_ra_matches} matches ({match_percentage:.1f}%)",
                         "success",
                     )
