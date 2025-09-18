@@ -43,6 +43,10 @@ class ScanProgressWidget(QWidget):
         self._files_processed = 0
         self._roms_found = 0
         self._ra_matches = 0
+        self._new_roms = 0
+        self._modified_roms = 0
+        self._removed_roms = 0
+        self._existing_roms = 0
         self._current_operation = ""
         self._current_file_name = ""  # Track current file for status display
         self._detail_messages = []
@@ -115,9 +119,17 @@ class ScanProgressWidget(QWidget):
         self._detail_container.setObjectName("DetailContainer")
         self._detail_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        detail_layout = QVBoxLayout(self._detail_container)
+        # Use horizontal layout for main detail container
+        detail_layout = QHBoxLayout(self._detail_container)
         detail_layout.setContentsMargins(0, 8, 0, 8)
-        detail_layout.setSpacing(4)
+        detail_layout.setSpacing(8)
+
+        # Left side - stats panel (narrower)
+        left_panel = QWidget()
+        left_panel.setMaximumWidth(250)  # Fixed width for stats panel
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(4)
 
         # Detail info frame
         detail_frame = QFrame()
@@ -131,40 +143,47 @@ class ScanProgressWidget(QWidget):
         self._operation_label.setStyleSheet("font-weight: bold;")
         detail_frame_layout.addWidget(self._operation_label)
 
-        # Statistics row
-        stats_widget = QWidget()
-        stats_layout = QHBoxLayout(stats_widget)
-        stats_layout.setContentsMargins(0, 0, 0, 0)
-        stats_layout.setSpacing(20)
+        # Scan changes summary
+        changes_label = QLabel("Changes:")
+        changes_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        detail_frame_layout.addWidget(changes_label)
 
-        self._files_label = QLabel("Files: 0/0")
-        stats_layout.addWidget(self._files_label)
+        # New ROMs
+        self._new_roms_label = QLabel("New: 0")
+        self._new_roms_label.setStyleSheet("color: #4CAF50; padding-left: 10px;")
+        detail_frame_layout.addWidget(self._new_roms_label)
 
-        self._roms_label = QLabel("ROMs Found: 0")
-        stats_layout.addWidget(self._roms_label)
+        # Modified ROMs
+        self._modified_roms_label = QLabel("Modified: 0")
+        self._modified_roms_label.setStyleSheet("color: #FFA726; padding-left: 10px;")
+        detail_frame_layout.addWidget(self._modified_roms_label)
 
-        self._matches_label = QLabel("RA Matches: 0")
-        stats_layout.addWidget(self._matches_label)
+        # Removed ROMs
+        self._removed_roms_label = QLabel("Removed: 0")
+        self._removed_roms_label.setStyleSheet("color: #EF5350; padding-left: 10px;")
+        detail_frame_layout.addWidget(self._removed_roms_label)
 
-        self._download_label = QLabel("")
-        self._download_label.setStyleSheet("color: #4CAF50;")
-        stats_layout.addWidget(self._download_label)
+        # Existing ROMs
+        self._existing_roms_label = QLabel("Existing: 0")
+        self._existing_roms_label.setStyleSheet("color: #888888; padding-left: 10px;")
+        detail_frame_layout.addWidget(self._existing_roms_label)
 
-        stats_layout.addStretch()
-        detail_frame_layout.addWidget(stats_widget)
+        # Hidden labels for compatibility (keep internal tracking but don't display)
+        self._files_label = QLabel("")
+        self._files_label.setVisible(False)
+        self._roms_label = QLabel("")
+        self._roms_label.setVisible(False)
+        self._current_file_label = QLabel("")
+        self._current_file_label.setVisible(False)
 
-        # Current file
-        self._current_file_label = QLabel("Current: None")
-        self._current_file_label.setWordWrap(True)
-        self._current_file_label.setStyleSheet("color: #888;")
-        detail_frame_layout.addWidget(self._current_file_label)
+        detail_frame_layout.addStretch()  # Push everything to top
+        left_layout.addWidget(detail_frame)
 
-        detail_layout.addWidget(detail_frame)
-
-        # Detail log
+        # Right side - log panel (takes most space)
         self._detail_log = QTextEdit()
         self._detail_log.setReadOnly(True)
-        self._detail_log.setMaximumHeight(150)
+        self._detail_log.setMinimumHeight(150)
+        self._detail_log.setMaximumHeight(250)
         self._detail_log.setStyleSheet("""
             QTextEdit {
                 background: rgba(0, 0, 0, 0.2);
@@ -175,7 +194,10 @@ class ScanProgressWidget(QWidget):
                 font-size: 11px;
             }
         """)
-        detail_layout.addWidget(self._detail_log)
+
+        # Add panels to horizontal layout
+        detail_layout.addWidget(left_panel, 0)  # Don't stretch
+        detail_layout.addWidget(self._detail_log, 1)  # Take remaining space
 
         # Prepare detail container for smooth animation
         self._expanded_height = self._calculate_expanded_height()
@@ -203,7 +225,7 @@ class ScanProgressWidget(QWidget):
         if natural_height <= 0:
             natural_height = self._detail_container.childrenRect().height()
 
-        natural_height = max(220, min(natural_height, 400))
+        natural_height = max(180, min(natural_height, 300))  # Adjusted for horizontal layout
 
         self._detail_container.setMinimumHeight(previous_min)
         self._detail_container.setMaximumHeight(previous_max)
@@ -323,7 +345,7 @@ class ScanProgressWidget(QWidget):
         """Update file processing progress."""
         self._files_processed = current
         self._total_files = total
-        self._files_label.setText(f"Files: {current}/{total}")
+        self._files_label.setText(f"Files checked: {current}/{total}")
 
         # Update progress bar
         if total > 0:
@@ -333,12 +355,36 @@ class ScanProgressWidget(QWidget):
     def update_rom_count(self, count: int):
         """Update the number of ROMs found."""
         self._roms_found = count
-        self._roms_label.setText(f"ROMs Found: {count}")
+        self._roms_label.setText(f"ROMs validated: {count}")
+
+    def update_scan_changes(
+        self, new: int = None, modified: int = None, removed: int = None, existing: int = None
+    ):
+        """Update the scan change statistics.
+
+        Args:
+            new: Number of new ROMs found
+            modified: Number of modified ROMs
+            removed: Number of removed ROMs
+            existing: Number of existing ROMs
+        """
+        if new is not None:
+            self._new_roms = new
+            self._new_roms_label.setText(f"New: {new}")
+        if modified is not None:
+            self._modified_roms = modified
+            self._modified_roms_label.setText(f"Modified: {modified}")
+        if removed is not None:
+            self._removed_roms = removed
+            self._removed_roms_label.setText(f"Removed: {removed}")
+        if existing is not None:
+            self._existing_roms = existing
+            self._existing_roms_label.setText(f"Existing: {existing}")
 
     def update_ra_matches(self, count: int):
         """Update the number of RetroAchievements matches."""
         self._ra_matches = count
-        self._matches_label.setText(f"RA Matches: {count}")
+        # RA matches are now shown in the main log, not in stats
 
     def update_current_file(self, filepath: str):
         """Update the current file being processed."""
@@ -421,6 +467,10 @@ class ScanProgressWidget(QWidget):
         self._total_files = 0
         self._roms_found = 0
         self._ra_matches = 0
+        self._new_roms = 0
+        self._modified_roms = 0
+        self._removed_roms = 0
+        self._existing_roms = 0
         self._current_operation = ""
         self._current_file_name = ""
         self._detail_messages = []
@@ -430,7 +480,7 @@ class ScanProgressWidget(QWidget):
         self.update_operation("Idle")
         self.update_file_progress(0, 0)
         self.update_rom_count(0)
-        self.update_ra_matches(0)
+        self.update_scan_changes(0, 0, 0, 0)
         self.update_current_file("")
         self._detail_log.clear()
 

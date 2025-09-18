@@ -378,6 +378,28 @@ class MainWindow(QMainWindow):
             self._roms_by_platform = {}
             self._platforms_logged = set()  # Track which platforms we've logged
             self._ra_matches_by_platform = {}  # Track RA matches by platform
+            self._new_rom_count = 0
+            self._existing_rom_count = 0
+            # Store existing ROM paths at start of scan
+            if hasattr(self, "_rom_table_model") and hasattr(self._rom_table_model, "_rom_entries"):
+                self._existing_rom_paths = {
+                    (e.file_path, e.internal_path) for e in self._rom_table_model._rom_entries
+                }
+            else:
+                self._existing_rom_paths = set()
+
+        # Check if this is a new or existing ROM
+        rom_key = (rom_entry.file_path, rom_entry.internal_path)
+        if hasattr(self, "_existing_rom_paths"):
+            if rom_key not in self._existing_rom_paths:
+                self._new_rom_count += 1
+            else:
+                self._existing_rom_count += 1
+            # Update the widget in real-time
+            if self._toolbar_manager and self._toolbar_manager._progress_widget:
+                self._toolbar_manager._progress_widget.update_scan_changes(
+                    new=self._new_rom_count, existing=self._existing_rom_count
+                )
 
         # Get platform name
         platform_name = getattr(rom_entry, "platform_name", rom_entry.platform_id)
@@ -422,7 +444,25 @@ class MainWindow(QMainWindow):
         """Handle scan completion."""
         self.logger.info(f"Scan completed. Found {len(all_entries)} total ROMs.")
 
+        # Track changes compared to existing ROMs
+        new_count = 0
+        existing_count = 0
+        if hasattr(self, "_rom_table_model") and hasattr(self._rom_table_model, "_rom_entries"):
+            existing_paths = {
+                (e.file_path, e.internal_path) for e in self._rom_table_model._rom_entries
+            }
+            new_paths = {(e.file_path, e.internal_path) for e in all_entries}
+            new_count = len(new_paths - existing_paths)
+            existing_count = len(new_paths & existing_paths)
+            # For now, we'll just count new and existing ROMs. Modified and removed tracking would require more sophisticated change detection
+
         if self._toolbar_manager:
+            # Update change statistics
+            if self._toolbar_manager._progress_widget:
+                self._toolbar_manager._progress_widget.update_scan_changes(
+                    new=new_count, modified=0, removed=0, existing=existing_count
+                )
+
             # Add final summary
             if self._toolbar_manager._progress_widget and hasattr(self, "_roms_by_platform"):
                 self._toolbar_manager._progress_widget.add_detail_message(
