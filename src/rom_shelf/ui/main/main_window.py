@@ -328,6 +328,11 @@ class MainWindow(QMainWindow):
         if self._rom_model:
             self._rom_model.set_rom_entries([])
 
+        # Reset ROM log counter for progress widget
+        self._rom_log_count = 0
+        self._roms_by_platform = {}
+        self._platforms_logged = set()
+
         # Reset progress tracking
         self._last_progress_update = 0
         self._current_progress_percentage = 0
@@ -335,6 +340,28 @@ class MainWindow(QMainWindow):
         # Show progress bar
         if self._toolbar_manager:
             self._toolbar_manager.show_progress_bar()
+
+            # Log the platforms being scanned
+            if self._toolbar_manager._progress_widget:
+                platform_names = []
+                for config in platform_configs:
+                    platform = config.get("platform", None)
+                    if platform and hasattr(platform, "name"):
+                        platform_names.append(platform.name)
+                    elif platform and hasattr(platform, "platform_id"):
+                        platform_names.append(platform.platform_id)
+                    else:
+                        platform_names.append(str(platform) if platform else "Unknown")
+
+                if platform_names:
+                    unique_platforms = sorted(set(platform_names))
+                    self._toolbar_manager._progress_widget.add_detail_message(
+                        f"Starting scan of {len(unique_platforms)} platforms: {', '.join(unique_platforms)}",
+                        "info",
+                    )
+                    self._toolbar_manager._progress_widget.add_detail_message(
+                        "Scanning directories...", "info"
+                    )
 
         # Start scanning
         self._scanner_thread.start()
@@ -345,6 +372,50 @@ class MainWindow(QMainWindow):
     def _on_rom_found(self, rom_entry) -> None:
         """Handle a ROM being found during scan."""
         self.logger.debug(f"Found ROM: {rom_entry.display_name} ({rom_entry.platform_id})")
+
+        # Track ROMs by platform
+        if not hasattr(self, "_roms_by_platform"):
+            self._roms_by_platform = {}
+            self._platforms_logged = set()  # Track which platforms we've logged
+            self._ra_matches_by_platform = {}  # Track RA matches by platform
+
+        # Get platform name
+        platform_name = getattr(rom_entry, "platform_name", rom_entry.platform_id)
+
+        # Update platform counts
+        if platform_name not in self._roms_by_platform:
+            self._roms_by_platform[platform_name] = 0
+        if (
+            hasattr(self, "_ra_matches_by_platform")
+            and platform_name not in self._ra_matches_by_platform
+        ):
+            self._ra_matches_by_platform[platform_name] = 0
+        self._roms_by_platform[platform_name] += 1
+
+        # Check if this ROM has RetroAchievements data
+        try:
+            from ..core.rom_database import get_rom_database
+
+            rom_db = get_rom_database()
+            fingerprint = rom_db.get_fingerprint(rom_entry.file_path, rom_entry.internal_path)
+            if fingerprint and fingerprint.ra_game_id and hasattr(self, "_ra_matches_by_platform"):
+                self._ra_matches_by_platform[platform_name] += 1
+        except Exception:
+            pass  # Silently ignore RA check failures
+
+        # Track total ROMs
+        if not hasattr(self, "_rom_log_count"):
+            self._rom_log_count = 0
+        self._rom_log_count += 1
+
+        # Log when we encounter a new platform for the first time
+        if self._toolbar_manager and self._toolbar_manager._progress_widget:
+            if platform_name not in self._platforms_logged:
+                self._platforms_logged.add(platform_name)
+                self._toolbar_manager._progress_widget.add_detail_message(
+                    f"Found ROMs for {platform_name}", "info"
+                )
+
         self.add_rom_entries([rom_entry])
 
     def _on_scan_completed(self, all_entries) -> None:
@@ -352,6 +423,46 @@ class MainWindow(QMainWindow):
         self.logger.info(f"Scan completed. Found {len(all_entries)} total ROMs.")
 
         if self._toolbar_manager:
+            # Add final summary
+            if self._toolbar_manager._progress_widget and hasattr(self, "_roms_by_platform"):
+                self._toolbar_manager._progress_widget.add_detail_message(
+                    "━" * 50,  # Separator line
+                    "info",
+                )
+
+                # Platform breakdown
+                self._toolbar_manager._progress_widget.add_detail_message(
+                    "SCAN COMPLETE - Platform Summary:", "success"
+                )
+
+                total_ra_matches = 0
+                for platform, count in sorted(self._roms_by_platform.items()):
+                    ra_count = getattr(self, "_ra_matches_by_platform", {}).get(platform, 0)
+                    total_ra_matches += ra_count
+
+                    # Show RA match info if any matches found
+                    if ra_count > 0:
+                        self._toolbar_manager._progress_widget.add_detail_message(
+                            f"  • {platform}: {count} ROM{'s' if count != 1 else ''} ({ra_count} with achievements)",
+                            "info",
+                        )
+                    else:
+                        self._toolbar_manager._progress_widget.add_detail_message(
+                            f"  • {platform}: {count} ROM{'s' if count != 1 else ''}", "info"
+                        )
+
+                self._toolbar_manager._progress_widget.add_detail_message(
+                    f"Total: {len(all_entries)} ROMs found", "success"
+                )
+
+                # Show RetroAchievements match summary if any
+                if total_ra_matches > 0:
+                    match_percentage = (total_ra_matches / len(all_entries)) * 100
+                    self._toolbar_manager._progress_widget.add_detail_message(
+                        f"RetroAchievements: {total_ra_matches} matches ({match_percentage:.1f}%)",
+                        "success",
+                    )
+
             # Set to 100% to show completion before hiding
             self._toolbar_manager.update_progress(100)
             self._current_progress_percentage = 100
@@ -464,24 +575,27 @@ class MainWindow(QMainWindow):
         else:
             file_name = None
 
-        # Create operation string with platform if available
-        operation = "Scanning ROM files"
-        if hasattr(progress, "current_platform") and progress.current_platform:
-            operation = f"Scanning {progress.current_platform}"
-
+        # Don't update operation on every progress update - it causes spam
+        # Only update file progress and counts
         self._toolbar_manager.update_scan_details(
-            operation=operation,
+            operation=None,  # Don't update operation to avoid spam
             current_file=progress.current_file,
             files_processed=progress.files_processed,
             total_files=progress.total_files,
             roms_found=progress.rom_entries_found,
         )
 
-        # Update status message (compact view)
+        # Update status message (compact view) - now with better file name display
         if file_name and progress.total_files > 0:
-            self._toolbar_manager.update_status(
-                f"Scanning: {file_name} ({progress.files_processed}/{progress.total_files})"
-            )
+            # Show platform name if available for context
+            if hasattr(progress, "current_platform") and progress.current_platform:
+                self._toolbar_manager.update_status(
+                    f"{progress.current_platform}: {file_name} ({progress.files_processed}/{progress.total_files})"
+                )
+            else:
+                self._toolbar_manager.update_status(
+                    f"Scanning: {file_name} ({progress.files_processed}/{progress.total_files})"
+                )
         else:
             self._toolbar_manager.update_status(f"Files processed: {progress.files_processed}")
 

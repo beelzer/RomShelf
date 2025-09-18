@@ -44,8 +44,9 @@ class ScanProgressWidget(QWidget):
         self._roms_found = 0
         self._ra_matches = 0
         self._current_operation = ""
+        self._current_file_name = ""  # Track current file for status display
         self._detail_messages = []
-        self._max_detail_messages = 100  # Keep last 100 messages
+        self._max_detail_messages = 1000  # Keep last 1000 messages (effectively unlimited)
 
         # Animation support
         self._timeline = None
@@ -296,8 +297,15 @@ class ScanProgressWidget(QWidget):
 
     def update_status(self, message: str):
         """Update the status message."""
+        # Show more detailed message with current file if available
+        if hasattr(self, "_current_file_name") and self._current_file_name:
+            # Extract just the filename from the full path for display
+            filename = self._current_file_name.split("/")[-1].split("\\")[-1]
+            if filename:
+                message = f"Scanning: {filename}"
+
         # Truncate if too long for compact view
-        max_length = 40
+        max_length = 50  # Increased to show more detail
         if len(message) > max_length:
             message = message[: max_length - 3] + "..."
         self._status_label.setText(message)
@@ -307,8 +315,9 @@ class ScanProgressWidget(QWidget):
         self._current_operation = operation
         self._operation_label.setText(f"Operation: {operation}")
 
-        # Add to detail log
-        self._add_detail_message(f"[{self._get_timestamp()}] {operation}")
+        # Add to detail log with timestamp
+        timestamp = self._get_timestamp()
+        self._add_detail_message(f"[{timestamp}] {operation}")
 
     def update_file_progress(self, current: int, total: int):
         """Update file processing progress."""
@@ -333,6 +342,9 @@ class ScanProgressWidget(QWidget):
 
     def update_current_file(self, filepath: str):
         """Update the current file being processed."""
+        # Store the current file name for use in update_status
+        self._current_file_name = filepath
+
         # Show just the filename for space
         if filepath:
             filename = filepath.split("/")[-1].split("\\")[-1]
@@ -341,6 +353,10 @@ class ScanProgressWidget(QWidget):
             display_text = "Current: None"
 
         self._current_file_label.setText(display_text)
+
+        # Update status to show the current file being scanned
+        if filepath:
+            self.update_status(f"Scanning: {filename}")
 
     def add_detail_message(self, message: str, message_type: str = "info"):
         """Add a detailed message to the log.
@@ -375,7 +391,13 @@ class ScanProgressWidget(QWidget):
     def _update_detail_log(self):
         """Update the detail log display."""
         html_lines = []
-        for message, color in self._detail_messages[-20:]:  # Show last 20 messages
+        # Show all messages (or at least last 100 for performance)
+        messages_to_show = (
+            self._detail_messages[-100:]
+            if len(self._detail_messages) > 100
+            else self._detail_messages
+        )
+        for message, color in messages_to_show:
             html_lines.append(f'<span style="color: {color};">{message}</span>')
 
         self._detail_log.setHtml("<br>".join(html_lines))
@@ -400,6 +422,7 @@ class ScanProgressWidget(QWidget):
         self._roms_found = 0
         self._ra_matches = 0
         self._current_operation = ""
+        self._current_file_name = ""
         self._detail_messages = []
 
         self.set_progress(0)
@@ -416,7 +439,7 @@ class ScanProgressWidget(QWidget):
         self.set_progress(100)
         self.update_status("Scan completed")
         self.update_operation("Completed")
-        self.add_detail_message(f"Scan completed: {self._roms_found} ROMs found", "success")
+        # Don't add a message here - the main window adds the correct totals
 
         # Keep expand button functional
         self._expand_button.setEnabled(True)
