@@ -76,6 +76,7 @@ class ToolbarManager(QObject):
     def create_status_bar(self) -> QStatusBar:
         """Create the status bar."""
         self._status_bar = QStatusBar(self._main_window)
+        self._status_bar.setSizeGripEnabled(False)
         self._main_window.setStatusBar(self._status_bar)
 
         # Create expandable progress widget

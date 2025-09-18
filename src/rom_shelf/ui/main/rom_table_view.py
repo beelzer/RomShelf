@@ -29,6 +29,7 @@ class ROMTableView(QTableView):
         self._hash_delegate = HashDelegate(self)
         self._region_delegate = RegionDelegate(self)
         self._language_delegate = LanguageDelegate(self)
+        self._corner_widget: QWidget | None = None
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -63,6 +64,52 @@ class ROMTableView(QTableView):
         # Enable context menu
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
+
+        self._initialize_corner_widget()
+
+    def _initialize_corner_widget(self) -> None:
+        """Create and keep the corner widget aligned with the header."""
+        header = self.horizontalHeader()
+        if self._corner_widget is None:
+            self._corner_widget = QWidget(self)
+            self._corner_widget.setObjectName("TableCorner")
+            self._corner_widget.setAutoFillBackground(True)
+            self.setCornerWidget(self._corner_widget)
+
+            scroll_bar = self.verticalScrollBar()
+            scroll_bar.rangeChanged.connect(lambda *_: self._sync_corner_geometry())
+
+        header_palette = header.palette()
+        corner_palette = self._corner_widget.palette()
+        corner_palette.setColor(
+            self._corner_widget.backgroundRole(),
+            header_palette.color(header.backgroundRole()),
+        )
+        self._corner_widget.setPalette(corner_palette)
+
+        header.geometriesChanged.connect(self._sync_corner_geometry)
+        self._sync_corner_geometry()
+
+    def _sync_corner_geometry(self) -> None:
+        """Update the corner widget size so the scroll bar stops at the header."""
+        if not self._corner_widget:
+            return
+
+        header_height = self.horizontalHeader().height()
+        scroll_bar = self.verticalScrollBar()
+        scroll_width = scroll_bar.sizeHint().width()
+
+        self._corner_widget.setFixedHeight(header_height)
+        if scroll_bar.isVisible():
+            self._corner_widget.setFixedWidth(scroll_width)
+            self._corner_widget.show()
+        else:
+            self._corner_widget.hide()
+
+    def resizeEvent(self, event) -> None:
+        """Keep the corner widget aligned during resizes."""
+        super().resizeEvent(event)
+        self._sync_corner_geometry()
 
     def set_model(self, model: ROMTableModel) -> None:
         """Set the ROM table model."""
@@ -136,6 +183,9 @@ class ROMTableView(QTableView):
             if column.key == "name":
                 # Make Name column stretch to fill available space
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            elif column.key == "language":
+                # Make Language column auto-resize to fit content (flag icons)
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
             else:
                 # Set other columns to fixed size
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)

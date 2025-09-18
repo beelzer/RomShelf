@@ -324,6 +324,10 @@ class MainWindow(QMainWindow):
         self._scanner_thread.scanner.scan_error.connect(self._on_scan_error)
         self._scanner_thread.scanner.progress_updated.connect(self._on_scan_progress)
 
+        # Clear existing ROMs before starting new scan
+        if self._rom_model:
+            self._rom_model.set_rom_entries([])
+
         # Reset progress tracking
         self._last_progress_update = 0
         self._current_progress_percentage = 0

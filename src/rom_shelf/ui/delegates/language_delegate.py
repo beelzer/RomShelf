@@ -154,7 +154,23 @@ class LanguageDelegate(QStyledItemDelegate):
         self._language_data[index_key] = {}
 
         icons_drawn = 0
-        for i, lang in enumerate(languages[:6]):  # Limit to 6 languages for space
+        # Calculate how many flags we can fit based on available width
+        available_width = option.rect.width() - 16  # Account for padding
+        flag_width = 22  # Each flag takes 22px (20px + 2px spacing)
+        plus_indicator_width = 30  # Space needed for "+X" text
+
+        # Calculate max flags that can fit
+        max_flags_possible = available_width // flag_width
+        # If we have more languages than can fit, reserve space for "+X"
+        if len(languages) > max_flags_possible:
+            max_flags = (available_width - plus_indicator_width) // flag_width
+        else:
+            max_flags = max_flags_possible
+
+        # Ensure at least 1 flag is shown if there are languages
+        max_flags = max(1, min(max_flags, len(languages)))
+
+        for i, lang in enumerate(languages[:max_flags]):  # Show as many as fit
             # Normalize language code to lowercase for matching
             lang_code = lang[:2].lower() if len(lang) >= 2 else lang.lower()
             # logger.info(f"[LANG] Processing language '{lang}' -> normalized to '{lang_code}'")
@@ -164,19 +180,19 @@ class LanguageDelegate(QStyledItemDelegate):
                 full_name, country_code = self.LANGUAGE_INFO[lang_code]
 
                 # Get flag icon for the language's associated country
-                flag_icon = FlagIcons.get_flag_icon(country_code, size=QSize(16, 12))
+                flag_icon = FlagIcons.get_flag_icon(country_code, size=QSize(20, 14))
 
                 if flag_icon:
                     # Draw the flag icon
-                    icon_y = y + (height - 12) // 2
-                    icon_rect = QRect(x, icon_y, 16, 12)
+                    icon_y = y + (height - 14) // 2  # Center vertically
+                    icon_rect = QRect(x, icon_y, 20, 14)
                     flag_icon.paint(painter, icon_rect, Qt.AlignCenter)
 
                     # Store the clickable area for hover detection
                     self._icon_rects[index_key][i] = icon_rect
                     self._language_data[index_key][i] = (lang_code, full_name)
 
-                    x += 18  # Move to next icon position
+                    x += 22  # Move to next icon position (20px icon + 2px spacing)
                     icons_drawn += 1
                 else:
                     # No flag icon found for this language
@@ -184,6 +200,22 @@ class LanguageDelegate(QStyledItemDelegate):
             else:
                 # Unknown language - skip showing it since we don't have a flag
                 pass
+
+        # Show "+X" indicator if there are more languages
+        if len(languages) > max_flags:
+            additional_count = len(languages) - max_flags
+            painter.setPen(option.palette.text().color())
+            painter.setFont(option.font)
+            # Draw the "+X" text
+            plus_text = f"+{additional_count}"
+            text_rect = QRect(x, y, 30, height)
+            painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, plus_text)
+
+            # Store the "+X" area for hover detection
+            self._icon_rects[index_key]["plus_indicator"] = text_rect
+            # Store the remaining languages for tooltip
+            remaining_languages = languages[max_flags:]
+            self._language_data[index_key]["plus_indicator"] = remaining_languages
 
         # If no languages were drawn, show text fallback
         if icons_drawn == 0:
@@ -218,39 +250,61 @@ class LanguageDelegate(QStyledItemDelegate):
             pos = event.pos()
             tooltip_shown = False
 
-            # Check each language rectangle
+            # Check each language rectangle and plus indicator
             for lang_idx, rect in self._icon_rects[index_key].items():
                 if rect.contains(pos):
-                    # Show tooltip for this specific language
-                    if lang_idx in self._language_data.get(index_key, {}):
-                        lang_code, full_name = self._language_data[index_key][lang_idx]
+                    # Check if this is the plus indicator
+                    if lang_idx == "plus_indicator":
+                        # Show tooltip for remaining languages
+                        if "plus_indicator" in self._language_data.get(index_key, {}):
+                            remaining_languages = self._language_data[index_key]["plus_indicator"]
 
-                        # Build tooltip with language info
-                        tooltip = f"<b>{full_name}</b>"
-                        if lang_code != full_name:
-                            tooltip += f"<br>Language code: {lang_code}"
+                            # Build tooltip showing the remaining languages
+                            tooltip_parts = ["<b>Additional Languages:</b>"]
+                            for lang in remaining_languages:
+                                lang_code = lang[:2].lower() if len(lang) >= 2 else lang.lower()
+                                if lang_code in self.LANGUAGE_INFO:
+                                    full_name, _ = self.LANGUAGE_INFO[lang_code]
+                                    tooltip_parts.append(f"• {full_name}")
+                                else:
+                                    tooltip_parts.append(f"• {lang}")
 
-                        # Add additional info for some languages
-                        extra_info = {
-                            "en": "Primary language for UK, USA, Australia, Canada",
-                            "fr": "Primary language for France, Canada (Quebec), Belgium",
-                            "de": "Primary language for Germany, Austria, Switzerland",
-                            "es": "Primary language for Spain, Latin America",
-                            "it": "Primary language for Italy",
-                            "pt": "Primary language for Portugal, Brazil",
-                            "ja": "Primary language for Japan",
-                            "ko": "Primary language for South Korea",
-                            "zh": "Primary language for China, Taiwan, Hong Kong",
-                        }
+                            tooltip = "<br>".join(tooltip_parts)
+                            QToolTip.showText(event.globalPos(), tooltip)
+                            tooltip_shown = True
+                            QApplication.setOverrideCursor(QCursor(Qt.PointingHandCursor))
+                            break
+                    else:
+                        # Show tooltip for individual language flag
+                        if lang_idx in self._language_data.get(index_key, {}):
+                            lang_code, full_name = self._language_data[index_key][lang_idx]
 
-                        if lang_code in extra_info:
-                            tooltip += f"<br><i>{extra_info[lang_code]}</i>"
+                            # Build tooltip with language info
+                            tooltip = f"<b>{full_name}</b>"
+                            if lang_code != full_name:
+                                tooltip += f"<br>Language code: {lang_code}"
 
-                        QToolTip.showText(event.globalPos(), tooltip)
-                        tooltip_shown = True
-                        # Change cursor to hand pointer
-                        QApplication.setOverrideCursor(QCursor(Qt.PointingHandCursor))
-                        break
+                            # Add additional info for some languages
+                            extra_info = {
+                                "en": "Primary language for UK, USA, Australia, Canada",
+                                "fr": "Primary language for France, Canada (Quebec), Belgium",
+                                "de": "Primary language for Germany, Austria, Switzerland",
+                                "es": "Primary language for Spain, Latin America",
+                                "it": "Primary language for Italy",
+                                "pt": "Primary language for Portugal, Brazil",
+                                "ja": "Primary language for Japan",
+                                "ko": "Primary language for South Korea",
+                                "zh": "Primary language for China, Taiwan, Hong Kong",
+                            }
+
+                            if lang_code in extra_info:
+                                tooltip += f"<br><i>{extra_info[lang_code]}</i>"
+
+                            QToolTip.showText(event.globalPos(), tooltip)
+                            tooltip_shown = True
+                            # Change cursor to hand pointer
+                            QApplication.setOverrideCursor(QCursor(Qt.PointingHandCursor))
+                            break
 
             # Hide tooltip and restore cursor if not over any icon
             if not tooltip_shown:
@@ -294,5 +348,48 @@ class LanguageDelegate(QStyledItemDelegate):
         Returns:
             The size hint
         """
-        # Make sure we have enough width for multiple language indicators
-        return option.rect.size()
+        # Get the ROM entry to calculate actual width needed
+        rom_entry = index.data(Qt.UserRole + 1)
+        if not rom_entry or "language" not in rom_entry.metadata:
+            return QSize(60, option.rect.height())  # Minimum width
+
+        language_str = str(rom_entry.metadata.get("language", ""))
+        if not language_str:
+            return QSize(60, option.rect.height())
+
+        # Parse languages to count how many flag icons we'll show
+        if language_str.strip().lower() == "multi":
+            languages = ["Multi"]
+        else:
+            normalized = language_str.replace("+", ",").replace("/", ",")
+            languages = [lang.strip() for lang in normalized.split(",") if lang.strip()]
+            if not languages:
+                languages = [language_str.strip()]
+
+        # Count valid languages that will have flag icons
+        valid_languages = 0
+        for lang in languages:
+            lang_code = lang[:2].lower() if len(lang) >= 2 else lang.lower()
+            if lang_code in self.LANGUAGE_INFO:
+                valid_languages += 1
+
+        # Calculate optimal width for all languages with flexibility
+        # Each icon is 20px wide + 2px spacing = 22px per icon
+        # Plus 16px total padding (8px on each side)
+        if valid_languages > 0:
+            # Calculate width needed for all valid flags
+            all_flags_width = 16 + (valid_languages * 22)
+            # But also calculate a reasonable minimum/maximum
+            min_width = 16 + 22  # At least 1 flag
+            reasonable_max = 16 + (6 * 22)  # Up to 6 flags
+
+            # If we have many languages, include space for "+X"
+            if valid_languages > 6:
+                calculated_width = reasonable_max + 30  # 6 flags + "+X"
+            else:
+                calculated_width = min(all_flags_width, reasonable_max)
+        else:
+            # Fallback for text display
+            calculated_width = max(80, len(language_str) * 8)
+
+        return QSize(calculated_width, option.rect.height())

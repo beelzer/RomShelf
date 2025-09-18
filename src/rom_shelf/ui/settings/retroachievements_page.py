@@ -3,7 +3,7 @@
 import logging
 import time
 
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QStackedWidget,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -23,7 +24,6 @@ from PySide6.QtWidgets import (
 )
 
 from ...services.retroachievements_service import RetroAchievementsService
-from ..widgets.compact_button import TableCellButton
 
 
 class CacheUpdateDialog(QDialog):
@@ -331,9 +331,9 @@ class RetroAchievementsPage(QWidget):
 
         # Platform cache table
         self._cache_table = QTableWidget()
-        self._cache_table.setColumnCount(6)
+        self._cache_table.setColumnCount(5)
         self._cache_table.setHorizontalHeaderLabels(
-            ["Platform", "Games", "Last Updated", "Progress Sync", "Update", "Sync Progress"]
+            ["Platform", "Games", "Last Updated", "Progress Sync", ""]
         )
         self._cache_table.horizontalHeader().setStretchLastSection(False)
         self._cache_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -347,9 +347,7 @@ class RetroAchievementsPage(QWidget):
             3, QHeaderView.ResizeMode.ResizeToContents
         )
         self._cache_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        self._cache_table.setColumnWidth(4, 70)  # Update button column
-        self._cache_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
-        self._cache_table.setColumnWidth(5, 90)  # Sync Progress button column
+        self._cache_table.setColumnWidth(4, 40)  # Action button column
         self._cache_table.setAlternatingRowColors(True)
         self._cache_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._cache_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -646,35 +644,43 @@ class RetroAchievementsPage(QWidget):
                 progress_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._cache_table.setItem(row, 3, progress_item)
 
-                # Update button (column 4)
-                update_cell_widget = QWidget()
-                update_cell_layout = QHBoxLayout(update_cell_widget)
-                update_cell_layout.setContentsMargins(0, 0, 0, 0)
-                update_cell_layout.setSpacing(0)
+                # Action button (column 4) - combined update and sync
+                action_cell_widget = QWidget()
+                action_cell_layout = QHBoxLayout(action_cell_widget)
+                action_cell_layout.setContentsMargins(2, 2, 2, 2)
+                action_cell_layout.setSpacing(0)
+                action_cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-                update_btn = TableCellButton("Update")
-                update_btn.clicked.connect(
-                    lambda checked, cid=console_id: self._update_platform_cache(cid)
+                # Create icon button for update
+                action_btn = QPushButton()
+                action_btn.setIcon(
+                    self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
                 )
-                update_cell_layout.addWidget(update_btn)
-                self._cache_table.setCellWidget(row, 4, update_cell_widget)
-
-                # Sync Progress button (column 5)
-                sync_cell_widget = QWidget()
-                sync_cell_layout = QHBoxLayout(sync_cell_widget)
-                sync_cell_layout.setContentsMargins(0, 0, 0, 0)
-                sync_cell_layout.setSpacing(0)
-
-                sync_btn = TableCellButton("Sync")
-                sync_btn.clicked.connect(
-                    lambda checked, platform=platform_key: self._sync_platform_progress(platform)
+                action_btn.setIconSize(QSize(16, 16))
+                action_btn.setMaximumSize(24, 24)
+                action_btn.setMinimumSize(24, 24)
+                action_btn.setToolTip(f"Update {info['name']} cache and sync progress")
+                action_btn.setStyleSheet("""
+                    QPushButton {
+                        border: none;
+                        padding: 2px;
+                        background: transparent;
+                    }
+                    QPushButton:hover {
+                        background: rgba(255, 255, 255, 0.1);
+                        border-radius: 3px;
+                    }
+                    QPushButton:pressed {
+                        background: rgba(255, 255, 255, 0.2);
+                    }
+                """)
+                action_btn.clicked.connect(
+                    lambda checked,
+                    cid=console_id,
+                    platform=platform_key: self._update_platform_with_sync(cid, platform)
                 )
-                # Disable if no RA games for this platform
-                if not progress_info or progress_info.get("total_games", 0) == 0:
-                    sync_btn.setEnabled(False)
-
-                sync_cell_layout.addWidget(sync_btn)
-                self._cache_table.setCellWidget(row, 5, sync_cell_widget)
+                action_cell_layout.addWidget(action_btn)
+                self._cache_table.setCellWidget(row, 4, action_cell_widget)
 
                 row += 1
 
@@ -684,10 +690,129 @@ class RetroAchievementsPage(QWidget):
                 empty_item = QTableWidgetItem("No platforms configured")
                 empty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._cache_table.setItem(0, 0, empty_item)
-                self._cache_table.setSpan(0, 0, 1, 6)  # Updated for 6 columns
+                self._cache_table.setSpan(0, 0, 1, 5)  # Updated for 5 columns
 
         except Exception as e:
             self.logger.error(f"Failed to refresh cache table: {e}")
+
+    def _update_platform_with_sync(self, console_id: int, platform_name: str):
+        """Update cache and sync progress for a platform."""
+        # Check if username and API key are configured for progress sync
+        settings = self._settings_manager.settings
+        sync_progress = bool(settings.ra_username and settings.ra_api_key)
+
+        if self._update_thread and self._update_thread.isRunning():
+            QMessageBox.warning(
+                self, "Update in Progress", "Another update is already in progress."
+            )
+            return
+
+        # Get console name for display
+        if not self._ra_service:
+            self._ra_service = RetroAchievementsService(self._settings_manager.settings)
+
+        console_name = self._ra_service._get_console_name(console_id)
+
+        # Create custom dialog
+        dialog_title = f"Update {console_name}"
+        self._update_dialog = CacheUpdateDialog(self, dialog_title)
+
+        if sync_progress:
+            self._update_dialog.confirm_label.setText(
+                f"This will:\n"
+                f"1. Update the game cache for {console_name}\n"
+                f"2. Sync your achievement progress\n\n"
+                f"This may take a few moments. Continue?"
+            )
+        else:
+            self._update_dialog.confirm_label.setText(
+                f"Update cache for {console_name}?\n\n"
+                f"This may take a few moments.\n\n"
+                f"Note: Configure username and API key to also sync achievement progress."
+            )
+
+        # Connect the update button to start both operations
+        self._update_dialog.update_btn.clicked.disconnect()  # Remove default connection
+        self._update_dialog.update_btn.clicked.connect(
+            lambda: self._start_combined_update(console_id, platform_name, sync_progress)
+        )
+
+        self._update_dialog.show()
+
+    def _start_combined_update(self, console_id: int, platform_name: str, sync_progress: bool):
+        """Start the combined update and sync operation."""
+        self._update_dialog.start_update()
+
+        # First, update the cache
+        self._update_thread = UpdateThread(self._ra_service, console_id)
+        self._update_thread.progress_signal.connect(self._on_update_progress)
+        self._update_thread.finished_signal.connect(
+            lambda success, msg: self._on_cache_update_complete(
+                success, msg, platform_name, sync_progress
+            )
+        )
+        self._update_thread.start()
+
+    def _on_cache_update_complete(
+        self, success: bool, message: str, platform_name: str, sync_progress: bool
+    ):
+        """Handle cache update completion and optionally start progress sync."""
+        if success:
+            if sync_progress:
+                # Cache update succeeded, now sync progress
+                self._update_dialog.update_status("Syncing achievement progress...")
+
+                # Get games for this platform with RA data
+                try:
+                    from ...core.rom_database import get_rom_database
+
+                    rom_db = get_rom_database()
+
+                    # Get all fingerprints with RA game IDs for this platform
+                    with rom_db.pool.get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "SELECT DISTINCT ra_game_id FROM rom_fingerprints WHERE platform = ? AND ra_game_id IS NOT NULL",
+                            (platform_name,),
+                        )
+                        results = cursor.fetchall()
+                        game_ids = [row[0] for row in results]
+
+                    if game_ids:
+                        # Start progress sync
+                        self._sync_thread = ProgressSyncThread(
+                            self._settings_manager.settings, game_ids
+                        )
+                        self._sync_thread.progress_updated.connect(self._on_sync_progress_update)
+                        self._sync_thread.finished.connect(
+                            lambda: self._on_combined_update_finished(True, message)
+                        )
+                        self._sync_thread.start()
+                    else:
+                        # No games to sync
+                        self._on_combined_update_finished(success, message)
+
+                except Exception as e:
+                    self.logger.error(f"Failed to start progress sync: {e}")
+                    self._on_combined_update_finished(success, message)
+            else:
+                # Just cache update, no progress sync
+                self._on_combined_update_finished(success, message)
+        else:
+            # Cache update failed
+            self._on_combined_update_finished(success, message)
+
+    def _on_combined_update_finished(self, success: bool, message: str):
+        """Handle completion of combined update operation."""
+        if hasattr(self, "_update_dialog") and self._update_dialog:
+            self._update_dialog.show_result(success, message)
+
+        self._update_thread = None
+        if hasattr(self, "_sync_thread"):
+            self._sync_thread = None
+
+        # Refresh the table
+        self._refresh_cache_table()
 
     def _update_platform_cache(self, console_id: int):
         """Update cache for a specific platform."""

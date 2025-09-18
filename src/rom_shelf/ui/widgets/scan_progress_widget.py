@@ -1,8 +1,13 @@
 """Expandable scan progress widget for detailed progress information."""
 
 import logging
+from datetime import datetime
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Signal
+from PySide6.QtCore import (
+    QEasingCurve,
+    QTimeLine,
+    Signal,
+)
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -14,6 +19,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+try:
+    from PySide6.QtWidgets import QWIDGETSIZE_MAX
+except ImportError:
+    QWIDGETSIZE_MAX = 16777215
 
 
 class ScanProgressWidget(QWidget):
@@ -32,27 +42,37 @@ class ScanProgressWidget(QWidget):
         self._total_files = 0
         self._files_processed = 0
         self._roms_found = 0
+        self._ra_matches = 0
         self._current_operation = ""
         self._detail_messages = []
         self._max_detail_messages = 100  # Keep last 100 messages
 
-        # Animation
-        self._animation = None
+        # Animation support
+        self._timeline = None
+        self._expanded_height = 0
 
         # Setup UI
         self._setup_ui()
 
     def _setup_ui(self):
         """Set up the user interface."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        # Main layout - no margins, widget fills status bar
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # Compact view (always visible)
-        compact_frame = QFrame()
-        compact_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        compact_layout = QHBoxLayout(compact_frame)
-        compact_layout.setContentsMargins(8, 4, 8, 4)
+        # Container widget that holds all content with proper margins
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(12, 0, 12, 0)  # Match main window margins
+        container_layout.setSpacing(0)
+
+        # Compact bar (always visible)
+        compact_bar = QWidget()
+        compact_bar.setObjectName("CompactBar")
+        compact_layout = QHBoxLayout(compact_bar)
+        compact_layout.setContentsMargins(0, 4, 0, 4)
+        compact_layout.setSpacing(8)
 
         # Progress bar
         self._progress_bar = QProgressBar()
@@ -60,23 +80,24 @@ class ScanProgressWidget(QWidget):
         self._progress_bar.setMaximum(100)
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setMaximumHeight(20)
-        compact_layout.addWidget(self._progress_bar, 1)
+        compact_layout.addWidget(self._progress_bar, 1)  # Takes most space
 
-        # Status label (short summary)
+        # Status label
         self._status_label = QLabel("Ready")
-        self._status_label.setMinimumWidth(200)
+        self._status_label.setMinimumWidth(150)
+        self._status_label.setMaximumWidth(250)
         compact_layout.addWidget(self._status_label)
 
         # Expand/collapse button
-        self._expand_button = QPushButton("▶")
-        self._expand_button.setMaximumWidth(30)
+        self._expand_button = QPushButton("v")
+        self._expand_button.setFixedSize(24, 24)
         self._expand_button.setToolTip("Show detailed progress")
         self._expand_button.clicked.connect(self._toggle_expand)
         self._expand_button.setStyleSheet("""
             QPushButton {
                 background: transparent;
                 border: none;
-                padding: 2px;
+                padding: 0px;
                 font-size: 12px;
             }
             QPushButton:hover {
@@ -86,32 +107,34 @@ class ScanProgressWidget(QWidget):
         """)
         compact_layout.addWidget(self._expand_button)
 
-        layout.addWidget(compact_frame)
+        container_layout.addWidget(compact_bar)
 
         # Detailed view (collapsible)
-        self._detail_widget = QWidget()
-        self._detail_widget.setMaximumHeight(0)
-        self._detail_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._detail_container = QWidget()
+        self._detail_container.setObjectName("DetailContainer")
+        self._detail_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        detail_layout = QVBoxLayout(self._detail_widget)
-        detail_layout.setContentsMargins(8, 8, 8, 8)
+        detail_layout = QVBoxLayout(self._detail_container)
+        detail_layout.setContentsMargins(0, 8, 0, 8)
         detail_layout.setSpacing(4)
 
         # Detail info frame
-        detail_info_frame = QFrame()
-        detail_info_frame.setFrameStyle(QFrame.Shape.Box)
-        detail_info_layout = QVBoxLayout(detail_info_frame)
-        detail_info_layout.setContentsMargins(8, 8, 8, 8)
-        detail_info_layout.setSpacing(4)
+        detail_frame = QFrame()
+        detail_frame.setFrameStyle(QFrame.Shape.Box)
+        detail_frame_layout = QVBoxLayout(detail_frame)
+        detail_frame_layout.setContentsMargins(8, 8, 8, 8)
+        detail_frame_layout.setSpacing(4)
 
         # Current operation
         self._operation_label = QLabel("Operation: Idle")
         self._operation_label.setStyleSheet("font-weight: bold;")
-        detail_info_layout.addWidget(self._operation_label)
+        detail_frame_layout.addWidget(self._operation_label)
 
-        # Statistics
-        stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(16)
+        # Statistics row
+        stats_widget = QWidget()
+        stats_layout = QHBoxLayout(stats_widget)
+        stats_layout.setContentsMargins(0, 0, 0, 0)
+        stats_layout.setSpacing(20)
 
         self._files_label = QLabel("Files: 0/0")
         stats_layout.addWidget(self._files_label)
@@ -127,17 +150,17 @@ class ScanProgressWidget(QWidget):
         stats_layout.addWidget(self._download_label)
 
         stats_layout.addStretch()
-        detail_info_layout.addLayout(stats_layout)
+        detail_frame_layout.addWidget(stats_widget)
 
-        # Current file being processed
+        # Current file
         self._current_file_label = QLabel("Current: None")
         self._current_file_label.setWordWrap(True)
         self._current_file_label.setStyleSheet("color: #888;")
-        detail_info_layout.addWidget(self._current_file_label)
+        detail_frame_layout.addWidget(self._current_file_label)
 
-        detail_layout.addWidget(detail_info_frame)
+        detail_layout.addWidget(detail_frame)
 
-        # Detail log (scrollable text)
+        # Detail log
         self._detail_log = QTextEdit()
         self._detail_log.setReadOnly(True)
         self._detail_log.setMaximumHeight(150)
@@ -153,37 +176,112 @@ class ScanProgressWidget(QWidget):
         """)
         detail_layout.addWidget(self._detail_log)
 
-        layout.addWidget(self._detail_widget)
+        # Prepare detail container for smooth animation
+        self._expanded_height = self._calculate_expanded_height()
+        self._detail_container.setMinimumHeight(0)
+        self._detail_container.setMaximumHeight(0)
+        self._detail_container.setVisible(False)
+
+        container_layout.addWidget(self._detail_container)
+        # Add container to main layout
+        main_layout.addWidget(container)
+
+        # Ensure widget expands horizontally
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def _calculate_expanded_height(self) -> int:
+        """Calculate the natural height of the detail container for animation."""
+        previous_min = self._detail_container.minimumHeight()
+        previous_max = self._detail_container.maximumHeight()
+
+        self._detail_container.setMinimumHeight(0)
+        self._detail_container.setMaximumHeight(QWIDGETSIZE_MAX)
+        self._detail_container.adjustSize()
+
+        natural_height = self._detail_container.sizeHint().height()
+        if natural_height <= 0:
+            natural_height = self._detail_container.childrenRect().height()
+
+        natural_height = max(220, min(natural_height, 400))
+
+        self._detail_container.setMinimumHeight(previous_min)
+        self._detail_container.setMaximumHeight(previous_max)
+        return natural_height
 
     def _toggle_expand(self):
         """Toggle expanded/collapsed state."""
         self._expanded = not self._expanded
 
-        # Update button
-        self._expand_button.setText("▼" if self._expanded else "▶")
+        self._expand_button.setText("^" if self._expanded else "v")
         self._expand_button.setToolTip(
             "Hide detailed progress" if self._expanded else "Show detailed progress"
         )
 
-        # Animate height change
-        if self._animation:
-            self._animation.stop()
+        if self._expanded:
+            self._expanded_height = self._calculate_expanded_height()
 
-        self._animation = QPropertyAnimation(self._detail_widget, b"maximumHeight")
-        self._animation.setDuration(200)
-        self._animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        start_height = max(self._detail_container.height(), 0)
+        end_height = self._expanded_height if self._expanded else 0
+
+        self._start_height_animation(start_height, end_height)
+        self.expand_toggled.emit(self._expanded)
+
+    def _start_height_animation(self, start_height: int, end_height: int) -> None:
+        """Animate the detail container height between two values."""
+        if self._timeline:
+            self._timeline.stop()
+            self._timeline.deleteLater()
+            self._timeline = None
+
+        start_height = max(0, start_height)
+        end_height = max(0, end_height)
+
+        if start_height == end_height:
+            self._detail_container.setFixedHeight(end_height)
+            if end_height == 0:
+                self._detail_container.setVisible(False)
+            else:
+                self._detail_container.setVisible(True)
+            return
+
+        self._detail_container.setMinimumHeight(0)
+        self._detail_container.setMaximumHeight(max(start_height, end_height, 1))
+        self._detail_container.setFixedHeight(start_height)
+
+        if start_height > 0 or end_height > 0:
+            self._detail_container.setVisible(True)
+
+        duration = 150 if self._expanded else 150
+        self._timeline = QTimeLine(duration, self)
+        self._timeline.setUpdateInterval(8)
+        self._timeline.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._timeline.setFrameRange(start_height, end_height)
+        self._timeline.frameChanged.connect(self._on_timeline_frame_changed)
+        self._timeline.finished.connect(self._on_animation_finished)
+        self._timeline.start()
+
+    def _on_timeline_frame_changed(self, value: int) -> None:
+        """Update container height while the animation runs."""
+        height = max(0, value)
+        self._detail_container.setFixedHeight(height)
+
+    def _on_animation_finished(self) -> None:
+        """Finalize state after the expand/collapse animation completes."""
+        if not self._timeline:
+            return
 
         if self._expanded:
-            # Calculate required height
-            target_height = 250  # Fixed height for expanded view
-            self._animation.setStartValue(0)
-            self._animation.setEndValue(target_height)
+            self._detail_container.setMinimumHeight(0)
+            self._detail_container.setMaximumHeight(self._expanded_height)
+            self._detail_container.setFixedHeight(self._expanded_height)
         else:
-            self._animation.setStartValue(self._detail_widget.maximumHeight())
-            self._animation.setEndValue(0)
+            self._detail_container.setMinimumHeight(0)
+            self._detail_container.setMaximumHeight(0)
+            self._detail_container.setFixedHeight(0)
+            self._detail_container.setVisible(False)
 
-        self._animation.start()
-        self.expand_toggled.emit(self._expanded)
+        self._timeline.deleteLater()
+        self._timeline = None
 
     def set_progress(self, value: int):
         """Set progress bar value (0-100)."""
@@ -199,7 +297,7 @@ class ScanProgressWidget(QWidget):
     def update_status(self, message: str):
         """Update the status message."""
         # Truncate if too long for compact view
-        max_length = 50
+        max_length = 40
         if len(message) > max_length:
             message = message[: max_length - 3] + "..."
         self._status_label.setText(message)
@@ -230,6 +328,7 @@ class ScanProgressWidget(QWidget):
 
     def update_ra_matches(self, count: int):
         """Update the number of RetroAchievements matches."""
+        self._ra_matches = count
         self._matches_label.setText(f"RA Matches: {count}")
 
     def update_current_file(self, filepath: str):
@@ -287,15 +386,19 @@ class ScanProgressWidget(QWidget):
 
     def _get_timestamp(self):
         """Get current timestamp string."""
-        from datetime import datetime
-
         return datetime.now().strftime("%H:%M:%S")
 
     def clear(self):
         """Clear all progress information."""
+        if self._timeline:
+            self._timeline.stop()
+            self._timeline.deleteLater()
+            self._timeline = None
+
         self._files_processed = 0
         self._total_files = 0
         self._roms_found = 0
+        self._ra_matches = 0
         self._current_operation = ""
         self._detail_messages = []
 
