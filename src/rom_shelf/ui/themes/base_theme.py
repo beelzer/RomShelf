@@ -1,7 +1,13 @@
 """Base theme class defining the theming interface."""
 
+import hashlib
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
+
+_SPIN_ARROW_CACHE: dict[tuple[str, str], str] = {}
+_SPIN_ICON_DIR = Path(tempfile.gettempdir()) / "rom_shelf_theme_icons"
 
 
 @dataclass
@@ -497,80 +503,437 @@ QCheckBox::indicator:disabled {{
     border-color: {self.colors.border_light};
 }}
 
-QSpinBox, QDoubleSpinBox {{
-    background-color: {self.colors.input_bg};
-    border: 1px solid {self.colors.input_border};
-    border-radius: 6px;
-    padding: 8px 12px;
+QRadioButton {{
     color: {self.colors.text};
+    spacing: 8px;
 }}
 
-QSpinBox:hover, QDoubleSpinBox:hover {{
+QRadioButton::indicator {{
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    border: 2px solid {self.colors.input_border};
+    background-color: {self.colors.input_bg};
+}}
+
+QRadioButton::indicator:unchecked:hover {{
     background-color: {self.colors.input_bg_hover};
     border-color: {self.colors.border_strong};
 }}
 
-QSpinBox:focus, QDoubleSpinBox:focus {{
+QRadioButton::indicator:checked {{
+    border-color: {self.colors.primary};
+    background-color: {self.colors.primary};
+}}
+
+QRadioButton::indicator:checked:hover {{
+    border-color: {self.colors.primary_hover};
+    background-color: {self.colors.primary_hover};
+}}
+
+QRadioButton::indicator:focus {{
+    outline: 2px solid {self.colors.focus_ring};
+    outline-offset: 2px;
+}}
+
+QRadioButton::indicator:disabled {{
+    border-color: {self.colors.border_light};
+    background-color: {self.colors.surface_variant};
+}}
+
+QSlider::groove:horizontal {{
+    background-color: {self.colors.border_light};
+    height: 4px;
+    border-radius: 2px;
+}}
+
+QSlider::groove:vertical {{
+    background-color: {self.colors.border_light};
+    width: 4px;
+    border-radius: 2px;
+}}
+
+QSlider::sub-page:horizontal {{
+    background-color: {self.colors.primary};
+    border-radius: 2px;
+}}
+
+QSlider::add-page:horizontal {{
+    background-color: {self.colors.input_bg};
+    border-radius: 2px;
+}}
+
+QSlider::sub-page:vertical {{
+    background-color: {self.colors.primary};
+    border-radius: 2px;
+}}
+
+QSlider::add-page:vertical {{
+    background-color: {self.colors.input_bg};
+    border-radius: 2px;
+}}
+
+QSlider::handle:horizontal {{
+    background-color: {self.colors.primary};
+    border: 2px solid {self.colors.primary};
+    width: 18px;
+    height: 18px;
+    margin: -7px 0;
+    border-radius: 9px;
+}}
+
+QSlider::handle:horizontal:hover {{
+    background-color: {self.colors.primary_hover};
+    border-color: {self.colors.primary_hover};
+}}
+
+QSlider::handle:horizontal:pressed {{
+    background-color: {self.colors.primary_pressed};
+    border-color: {self.colors.primary_pressed};
+}}
+
+QSlider::handle:horizontal:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-color: {self.colors.border_light};
+}}
+
+QSlider::handle:vertical {{
+    background-color: {self.colors.primary};
+    border: 2px solid {self.colors.primary};
+    width: 18px;
+    height: 18px;
+    margin: 0 -7px;
+    border-radius: 9px;
+}}
+
+QSlider::handle:vertical:hover {{
+    background-color: {self.colors.primary_hover};
+    border-color: {self.colors.primary_hover};
+}}
+
+QSlider::handle:vertical:pressed {{
+    background-color: {self.colors.primary_pressed};
+    border-color: {self.colors.primary_pressed};
+}}
+
+QSlider::handle:vertical:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-color: {self.colors.border_light};
+}}
+
+QDial {{
+    background: transparent;
+    color: {self.colors.text};
+}}
+
+QDial::groove {{
+    background-color: {self.colors.input_bg};
+    border: 1px solid {self.colors.input_border};
+    border-radius: 99px;
+    margin: 4px;
+}}
+
+QDial::groove:hover {{
+    border-color: {self.colors.border_strong};
+}}
+
+QDial::handle {{
+    background-color: {self.colors.primary};
+    border: 2px solid {self.colors.primary};
+    width: 12px;
+    height: 12px;
+    margin: -6px;
+    border-radius: 6px;
+}}
+
+QDial::handle:hover {{
+    background-color: {self.colors.primary_hover};
+    border-color: {self.colors.primary_hover};
+}}
+
+QDial::handle:pressed {{
+    background-color: {self.colors.primary_pressed};
+    border-color: {self.colors.primary_pressed};
+}}
+
+QDial::handle:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-color: {self.colors.border_light};
+}}
+
+QDateEdit,
+QTimeEdit,
+QDateTimeEdit {{
+    background-color: {self.colors.input_bg};
+    border: 1px solid {self.colors.input_border};
+    border-radius: 6px;
+    padding: 6px 32px 6px 10px;
+    min-height: 28px;
+    color: {self.colors.text};
+    min-width: 160px;
+}}
+
+QDateEdit:hover,
+QTimeEdit:hover,
+QDateTimeEdit:hover {{
+    background-color: {self.colors.input_bg_hover};
+    border-color: {self.colors.border_strong};
+}}
+
+QDateEdit:focus,
+QTimeEdit:focus,
+QDateTimeEdit:focus {{
     border-color: {self.colors.input_border_focus};
     outline: 2px solid {self.colors.focus_ring};
     outline-offset: -2px;
 }}
 
-/* QSpinBox button styling */
-QSpinBox::up-button, QDoubleSpinBox::up-button {{
-    subcontrol-origin: border;
+QDateEdit:disabled,
+QTimeEdit:disabled,
+QDateTimeEdit:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-color: {self.colors.border_light};
+    color: {self.colors.text_disabled};
+}}
+
+QDateEdit::drop-down,
+QDateTimeEdit::drop-down {{
+    subcontrol-origin: padding;
     subcontrol-position: top right;
-    width: 20px;
-    height: 14px;
-    background-color: {self.colors.input_bg};
+    width: 26px;
     border-left: 1px solid {self.colors.border};
-    border-bottom: 1px solid {self.colors.border};
+    background-color: {self.colors.input_bg};
     border-top-right-radius: 6px;
-}}
-
-QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {{
-    background-color: {self.colors.hover};
-}}
-
-QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed {{
-    background-color: {self.colors.pressed};
-}}
-
-QSpinBox::down-button, QDoubleSpinBox::down-button {{
-    subcontrol-origin: border;
-    subcontrol-position: bottom right;
-    width: 20px;
-    height: 14px;
-    background-color: {self.colors.input_bg};
-    border-left: 1px solid {self.colors.border};
-    border-top: 1px solid {self.colors.border};
     border-bottom-right-radius: 6px;
 }}
 
-QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+QDateEdit::drop-down:hover,
+QDateTimeEdit::drop-down:hover {{
+    background-color: {self.colors.hover};
+    border-color: {self.colors.border_strong};
+}}
+
+QDateEdit::drop-down:pressed,
+QDateTimeEdit::drop-down:pressed {{
+    background-color: {self.colors.pressed};
+    border-color: {self.colors.border_strong};
+}}
+
+QDateEdit::drop-down:disabled,
+QDateTimeEdit::drop-down:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-color: {self.colors.border_light};
+}}
+
+QDateEdit::down-arrow,
+QDateTimeEdit::down-arrow {{
+    image: url("{self._spin_arrow_data('down', self.colors.text)}");
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    background: none;
+    border: none;
+    padding: 0px;
+}}
+
+QDateEdit::down-arrow:pressed,
+QDateTimeEdit::down-arrow:pressed {{
+    image: url("{self._spin_arrow_data('down', self.colors.text_on_primary)}");
+}}
+
+QDateEdit::down-arrow:disabled,
+QDateTimeEdit::down-arrow:disabled {{
+    image: url("{self._spin_arrow_data('down', self.colors.text_disabled)}");
+}}
+
+QCalendarWidget {{
+    background-color: {self.colors.surface};
+    border: 1px solid {self.colors.border};
+    border-radius: 6px;
+}}
+
+QCalendarWidget QWidget#qt_calendar_navigationbar {{
+    background-color: {self.colors.card};
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 6px;
+}}
+
+QCalendarWidget QToolButton {{
+    background: transparent;
+    color: {self.colors.text};
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+}}
+
+QCalendarWidget QToolButton:hover {{
     background-color: {self.colors.hover};
 }}
 
-QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
+QCalendarWidget QToolButton:pressed {{
     background-color: {self.colors.pressed};
 }}
 
-QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
-    width: 10px;
-    height: 10px;
-    border-left: 3px solid transparent;
-    border-right: 3px solid transparent;
-    border-bottom: 4px solid {self.colors.text};
-    border-top: none;
+QCalendarWidget QToolButton#qt_calendar_prevmonth,
+QCalendarWidget QToolButton#qt_calendar_nextmonth {{
+    margin: 0px;
 }}
 
-QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
-    width: 10px;
-    height: 10px;
-    border-left: 3px solid transparent;
-    border-right: 3px solid transparent;
-    border-top: 4px solid {self.colors.text};
+QCalendarWidget QToolButton::menu-indicator {{
+    image: none;
+}}
+
+QCalendarWidget QAbstractItemView {{
+    background-color: {self.colors.surface};
+    color: {self.colors.text};
+    selection-background-color: {self.colors.primary};
+    selection-color: {self.colors.text_on_primary};
+    gridline-color: {self.colors.border_light};
+    outline: none;
+    border: none;
+}}
+
+QCalendarWidget QAbstractItemView:item:hover {{
+    background-color: {self.colors.hover};
+}}
+
+QCalendarWidget QAbstractItemView:item:selected {{
+    background-color: {self.colors.primary};
+    color: {self.colors.text_on_primary};
+}}
+
+QCalendarWidget QAbstractItemView:item:disabled {{
+    color: {self.colors.text_disabled};
+}}
+
+QCalendarWidget QSpinBox {{
+    padding: 2px 6px;
+    border-radius: 4px;
+}}
+
+QAbstractSpinBox {{
+    background-color: {self.colors.input_bg};
+    border: 1px solid {self.colors.input_border};
+    border-radius: 6px;
+    padding: 6px 30px 6px 10px;
+    color: {self.colors.text};
+    selection-background-color: {self.colors.selected};
+    selection-color: {self.colors.text_on_primary};
+}}
+
+QAbstractSpinBox:hover {{
+    background-color: {self.colors.input_bg_hover};
+    border-color: {self.colors.border_strong};
+}}
+
+QAbstractSpinBox:focus {{
+    border-color: {self.colors.input_border_focus};
+    outline: 2px solid {self.colors.focus_ring};
+    outline-offset: -2px;
+}}
+
+QAbstractSpinBox:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-color: {self.colors.border_light};
+    color: {self.colors.text_disabled};
+}}
+
+QAbstractSpinBox::up-button {{
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 24px;
+    height: 16px;
+    background-color: {self.colors.input_bg};
+    border-left: 1px solid {self.colors.border};
     border-bottom: none;
+    border-top-right-radius: 6px;
+    margin: 0px;
+}}
+
+QAbstractSpinBox::up-button:hover {{
+    background-color: {self.colors.hover};
+    border-left-color: {self.colors.border_strong};
+}}
+
+QAbstractSpinBox::up-button:pressed {{
+    background-color: {self.colors.primary};
+    border-left-color: {self.colors.primary};
+}}
+
+QAbstractSpinBox::up-button:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-left-color: {self.colors.border_light};
+}}
+
+QAbstractSpinBox::down-button {{
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 24px;
+    height: 16px;
+    background-color: {self.colors.input_bg};
+    border-left: 1px solid {self.colors.border};
+    border-top: none;
+    border-bottom-right-radius: 6px;
+    margin: 0px;
+}}
+
+QAbstractSpinBox::down-button:hover {{
+    background-color: {self.colors.hover};
+    border-left-color: {self.colors.border_strong};
+}}
+
+QAbstractSpinBox::down-button:pressed {{
+    background-color: {self.colors.primary};
+    border-left-color: {self.colors.primary};
+}}
+
+QAbstractSpinBox::down-button:disabled {{
+    background-color: {self.colors.surface_variant};
+    border-left-color: {self.colors.border_light};
+}}
+
+QAbstractSpinBox::up-arrow {{
+    image: url("{self._spin_arrow_data('up', self.colors.text)}");
+    width: 12px;
+    height: 12px;
+    margin: -1px 0px 0px 0px;
+    background: none;
+    border: none;
+    padding: 0px;
+}}
+
+QAbstractSpinBox::up-arrow:pressed {{
+    image: url("{self._spin_arrow_data('up', self.colors.text_on_primary)}");
+}}
+
+QAbstractSpinBox::up-arrow:disabled {{
+    image: url("{self._spin_arrow_data('up', self.colors.text_disabled)}");
+}}
+
+QAbstractSpinBox::down-arrow {{
+    image: url("{self._spin_arrow_data('down', self.colors.text)}");
+    width: 12px;
+    height: 12px;
+    margin: 0px 0px -1px 0px;
+    background: none;
+    border: none;
+    padding: 0px;
+}}
+
+QAbstractSpinBox::down-arrow:pressed {{
+    image: url("{self._spin_arrow_data('down', self.colors.text_on_primary)}");
+}}
+
+QAbstractSpinBox::down-arrow:disabled {{
+    image: url("{self._spin_arrow_data('down', self.colors.text_disabled)}");
+}}
+
+QWidget[formVariant="compact"] QDateEdit,
+QWidget[formVariant="compact"] QTimeEdit,
+QWidget[formVariant="compact"] QDateTimeEdit {{
+    min-width: 160px;
+    max-width: 160px;
 }}
 
 QWidget[formVariant="compact"] QLineEdit {{
@@ -587,7 +950,7 @@ QWidget[formVariant="compact"] QLineEdit:focus {{
 }}
 
 QWidget[formVariant="compact"] QAbstractSpinBox {{
-    padding: 1px 4px;
+    padding: 2px 24px 2px 6px;
     min-height: 26px;
     border: 1px solid {self.colors.input_border};
     border-radius: 4px;
@@ -596,6 +959,16 @@ QWidget[formVariant="compact"] QAbstractSpinBox {{
 QWidget[formVariant="compact"] QAbstractSpinBox:focus {{
     outline-offset: -2px;
     border-color: {self.colors.input_border_focus};
+}}
+
+QWidget[formVariant="compact"] QAbstractSpinBox::up-button {{
+    width: 20px;
+    height: 14px;
+}}
+
+QWidget[formVariant="compact"] QAbstractSpinBox::down-button {{
+    width: 20px;
+    height: 14px;
 }}
 
 QWidget[formVariant="compact"] QComboBox {{
@@ -789,3 +1162,25 @@ QStatusBar::item {{
             "error": self.colors.error,
             "info": self.colors.info,
         }
+
+    def _spin_arrow_data(self, direction: str, color: str) -> str:
+        """Generate a base64 SVG data URL for spinbox arrows."""
+        key = (direction, color)
+        if key in _SPIN_ARROW_CACHE:
+            return _SPIN_ARROW_CACHE[key]
+
+        _SPIN_ICON_DIR.mkdir(parents=True, exist_ok=True)
+
+        path_data = "M6 3L9.5 7H2.5Z" if direction == "up" else "M6 9L2.5 5H9.5Z"
+        svg = (
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'>"
+            f"<path fill='{color}' d='{path_data}'/></svg>"
+        )
+        digest = hashlib.sha1(f"{direction}_{color}".encode()).hexdigest()
+        file_path = _SPIN_ICON_DIR / f"spin_{direction}_{digest}.svg"
+        if not file_path.exists():
+            file_path.write_text(svg, encoding="utf-8")
+
+        cache_entry = file_path.as_posix()
+        _SPIN_ARROW_CACHE[key] = cache_entry
+        return cache_entry

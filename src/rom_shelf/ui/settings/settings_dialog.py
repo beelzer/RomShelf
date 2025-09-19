@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from ...core.settings import SettingsManager
 from ...platforms.core.platform_registry import platform_registry
+from .demo_forms_page import FormDemoPage
 from .interface_page import InterfacePage
 from .platform_specific_page import PlatformSpecificPage
 from .platforms_page import PlatformsPage
@@ -120,6 +121,14 @@ class SettingsDialog(QDialog):
         interface_page = InterfacePage()
         interface_page.settings_changed.connect(self._on_settings_changed)
         self._register_page("interface", interface_page)
+
+        # Demo category for themed form controls
+        demo_item = QTreeWidgetItem(self._category_tree)
+        demo_item.setText(0, "Demo: Forms/Inputs")
+        demo_item.setData(0, 32, "forms_demo")
+
+        demo_page = FormDemoPage()
+        self._register_page("forms_demo", demo_page)
 
         # RetroAchievements category
         ra_item = QTreeWidgetItem(self._category_tree)
