@@ -543,7 +543,8 @@ class ROMDatabase:
             crc32_value = self._calculate_crc32(file_path, internal_path)
 
             # Extract region and revision from filename using existing utility
-            metadata = extract_rom_metadata(file_path.name)
+            # Use platform parameter if provided
+            metadata = extract_rom_metadata(file_path.name, platform if platform else None)
             region = metadata.get("region", "")
             revision = metadata.get("revision", "")
 

@@ -187,7 +187,9 @@ class BasePlatform(ABC):
         # Clean the display name and extract additional metadata
         from ...utils.name_cleaner import get_display_name_and_metadata
 
-        display_name, extracted_metadata = get_display_name_and_metadata(original_name)
+        display_name, extracted_metadata = get_display_name_and_metadata(
+            original_name, self.platform_id
+        )
 
         # Merge extracted metadata with platform-specific metadata
         metadata.update(extracted_metadata)
