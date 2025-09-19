@@ -1,5 +1,7 @@
 """Toolbar and menu management for the main window."""
 
+from __future__ import annotations
+
 import logging
 
 from PySide6.QtCore import QObject, Qt
@@ -20,22 +22,28 @@ class ToolbarManager(QObject):
     """Manages toolbars, menus, and status bar for the main window."""
 
     def __init__(self, main_window: QMainWindow) -> None:
-        """Initialize the toolbar manager."""
         super().__init__(main_window)
         self.logger = logging.getLogger(__name__)
         self._main_window = main_window
         self._status_bar: QStatusBar | None = None
         self._progress_bar: QProgressBar | None = None
         self._progress_label: QLabel | None = None
+        self._scan_dock = None
         self._ra_match_count = 0
 
+    # Wiring ---------------------------------------------------------------------------
+
+    def attach_scan_dock(self, scan_dock) -> None:
+        """Let the toolbar manager collaborate with the scan progress dock."""
+        self._scan_dock = scan_dock
+
+    # Toolbar and menu -----------------------------------------------------------------
+
     def create_main_toolbar(self, refresh_callback, settings_callback) -> QToolBar:
-        """Create the main toolbar."""
         toolbar = QToolBar("Main Toolbar", self._main_window)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self._main_window.addToolBar(toolbar)
 
-        # Refresh action
         refresh_action = QAction("Refresh", self._main_window)
         refresh_action.setStatusTip("Refresh ROM library")
         refresh_action.triggered.connect(refresh_callback)
@@ -43,7 +51,6 @@ class ToolbarManager(QObject):
 
         toolbar.addSeparator()
 
-        # Settings action
         settings_action = QAction("Settings", self._main_window)
         settings_action.setStatusTip("Open application settings")
         settings_action.triggered.connect(settings_callback)
@@ -52,12 +59,9 @@ class ToolbarManager(QObject):
         return toolbar
 
     def create_menu_bar(self, refresh_callback, settings_callback) -> QMenuBar:
-        """Create the menu bar."""
         menubar = self._main_window.menuBar()
 
-        # File menu
         file_menu = menubar.addMenu("File")
-
         refresh_action = QAction("Refresh Library", self._main_window)
         refresh_action.setShortcut("F5")
         refresh_action.triggered.connect(refresh_callback)
@@ -70,9 +74,7 @@ class ToolbarManager(QObject):
         exit_action.triggered.connect(self._main_window.close)
         file_menu.addAction(exit_action)
 
-        # Tools menu
         tools_menu = menubar.addMenu("Tools")
-
         settings_action = QAction("Settings...", self._main_window)
         settings_action.setShortcut("Ctrl+,")
         settings_action.triggered.connect(settings_callback)
@@ -80,15 +82,16 @@ class ToolbarManager(QObject):
 
         return menubar
 
+    # Status bar -----------------------------------------------------------------------
+
     def create_status_bar(self) -> QStatusBar:
-        """Create the status bar."""
         self._status_bar = QStatusBar(self._main_window)
         self._status_bar.setSizeGripEnabled(False)
         self._main_window.setStatusBar(self._status_bar)
 
         right_container = QWidget()
         right_layout = QHBoxLayout(right_container)
-        right_layout.setContentsMargins(0, 0, 12, 0)  # Align with table on the right
+        right_layout.setContentsMargins(0, 0, 12, 0)
         right_layout.setSpacing(8)
 
         self._progress_label = QLabel("")
@@ -110,69 +113,44 @@ class ToolbarManager(QObject):
         return self._status_bar
 
     def update_status(self, message: str) -> None:
-        """Update the status bar message."""
         if self._status_bar:
-            # Always show regular status messages in the status bar
-            # The progress widget is only for scan-related messages
             self._status_bar.showMessage(message)
 
     def apply_font_settings(self, font) -> None:
-        """Apply font settings to toolbar components."""
-        # Apply to menu bar
         if hasattr(self._main_window, "menuBar"):
             self._main_window.menuBar().setFont(font)
-
-        # Apply to status bar
         if self._status_bar:
             self._status_bar.setFont(font)
 
+    # Progress helpers -----------------------------------------------------------------
+
     def show_progress_bar(self) -> None:
-        """Show the progress bar in the status bar."""
         if self._progress_bar:
+            self._progress_bar.setRange(0, 100)
             self._progress_bar.setValue(0)
             self._progress_bar.setVisible(True)
         if self._progress_label:
             self._progress_label.setText("Scanning...")
             self._progress_label.setVisible(True)
-
-        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
-            dock = self._main_window._scan_dock
-            dock.clear()
-            dock.set_expanded(True)
-            dock.show()
-
         self._ra_match_count = 0
 
     def hide_progress_bar(self) -> None:
-        """Hide the progress bar in the status bar."""
-        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
-            self._main_window._scan_dock.set_completed()
-
         if self._progress_bar:
             self._progress_bar.setVisible(False)
         if self._progress_label:
             self._progress_label.setVisible(False)
 
     def update_progress(self, value: int, message: str = "") -> None:
-        """Update progress bar value and optionally the status message."""
-        # Update progress bar
         if self._progress_bar and self._progress_bar.isVisible():
-            if self._progress_bar.maximum() == 0:
-                self._progress_bar.setRange(0, 100)
             clamped_value = min(max(value, 0), 100)
             self._progress_bar.setValue(clamped_value)
-
-        # Update label if message provided
         if message and self._progress_label:
             self._progress_label.setText(message)
 
     def set_progress_indeterminate(self, indeterminate: bool = True) -> None:
-        """Set progress bar to indeterminate mode."""
-        if self._progress_bar and self._progress_bar.isVisible():
-            if indeterminate:
-                self._progress_bar.setRange(0, 0)
-            else:
-                self._progress_bar.setRange(0, 100)
+        if not self._progress_bar or not self._progress_bar.isVisible():
+            return
+        self._progress_bar.setRange(0, 0 if indeterminate else 100)
 
     def update_scan_details(
         self,
@@ -184,56 +162,34 @@ class ToolbarManager(QObject):
         ra_matches: int = None,
         detail_message: str = None,
         message_type: str = "info",
-    ):
-        """Update detailed scan progress information.
-
-        Args:
-            operation: Current operation description
-            current_file: Path of file being processed
-            files_processed: Number of files processed
-            total_files: Total number of files to process
-            roms_found: Number of ROMs found
-            ra_matches: Number of RetroAchievements matches
-            detail_message: Detailed message to add to log
-            message_type: Type of detail message ('info', 'success', 'warning', 'error')
-        """
-        # Update dock if available
-        if not hasattr(self._main_window, "_scan_dock") or not self._main_window._scan_dock:
+    ) -> None:
+        if not self._scan_dock:
             return
 
-        dock = self._main_window._scan_dock
-
         if files_processed is not None and total_files is not None:
-            dock.update_file_progress(files_processed, total_files)
-            # Update progress bar percentage
+            self._scan_dock.update_file_progress(files_processed, total_files)
             if total_files > 0:
                 percentage = int((files_processed / total_files) * 100)
                 self.update_progress(percentage)
 
         if roms_found is not None:
-            dock.update_rom_count(roms_found)
+            self._scan_dock.update_rom_count(roms_found)
 
         if ra_matches is not None:
             self._ra_match_count = ra_matches
-            dock.update_ra_matches(ra_matches)
+            self._scan_dock.update_ra_matches(ra_matches)
 
         if detail_message:
-            dock.add_detail_message(detail_message, message_type)
+            self._scan_dock.add_detail_message(detail_message, message_type)
 
-    def increment_ra_matches(self):
-        """Increment the RetroAchievements match counter."""
+    def increment_ra_matches(self) -> None:
         self._ra_match_count += 1
-        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
-            self._main_window._scan_dock.update_ra_matches(self._ra_match_count)
+        if self._scan_dock:
+            self._scan_dock.update_ra_matches(self._ra_match_count)
 
     def update_download_progress(
         self, bytes_downloaded: int, total_bytes: int = 0, speed_bps: float = 0
-    ):
-        """Update download progress information.
-
-        Args:
-            bytes_downloaded: Number of bytes downloaded
-            total_bytes: Total size in bytes (0 if unknown)
-            speed_bps: Download speed in bytes per second
-        """
+    ) -> None:
+        """Update download progress information (currently unused)."""
         # Download progress tracking removed - not currently used
+        _ = (bytes_downloaded, total_bytes, speed_bps)

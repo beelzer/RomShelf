@@ -1,5 +1,7 @@
 """Utility class for widgets that need themed styling."""
 
+from __future__ import annotations
+
 from typing import Protocol
 
 from ..themes import get_theme_manager
@@ -32,18 +34,14 @@ class ThemeHelper:
     def apply_description_style(widget: ThemedWidget) -> None:
         """Apply description text styling to a widget."""
         theme_manager = get_theme_manager()
-        color = theme_manager.get_current_theme()
-        if color:
-            text_color = color.colors.text_secondary
-            widget.setStyleSheet(f"color: {text_color}; margin-bottom: 15px;")
+        palette = theme_manager.get_palette()
+        widget.setStyleSheet(f"color: {palette.text_secondary}; margin-bottom: 15px;")
 
     @staticmethod
-    def get_status_colors():
+    def get_status_colors() -> dict[str, str]:
         """Get all status colors from the current theme."""
         theme_manager = get_theme_manager()
-        if theme_manager.get_current_theme():
-            return theme_manager.get_current_theme().get_status_colors()
-        return {"success": "#4caf50", "warning": "#ff9800", "error": "#f44336", "info": "#2196f3"}
+        return theme_manager.get_status_colors()
 
     @staticmethod
     def configure_button_sizing(button, min_width: int = None, min_height: int = None) -> None:

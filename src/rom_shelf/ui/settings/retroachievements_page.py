@@ -19,11 +19,13 @@ from PySide6.QtWidgets import (
     QStyle,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from ...services.retroachievements_service import RetroAchievementsService
+from ..themes import get_theme_manager
 
 
 class CacheUpdateDialog(QDialog):
@@ -90,7 +92,7 @@ class CacheUpdateDialog(QDialog):
 
         # Download speed label
         self.speed_label = QLabel("")
-        self.speed_label.setStyleSheet("background-color: transparent; color: #4CAF50;")
+        self.speed_label.setStyleSheet("background-color: transparent;")
         progress_layout.addWidget(self.speed_label)
 
         progress_layout.addStretch()
@@ -120,6 +122,34 @@ class CacheUpdateDialog(QDialog):
 
         # Start with confirmation page
         self.stack.setCurrentWidget(self.confirm_widget)
+
+        self._apply_theme()
+
+    def apply_theme(self) -> None:
+        """Public hook to refresh themed styling."""
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        """Apply the active palette to dialog elements."""
+        theme_manager = get_theme_manager()
+        palette = theme_manager.get_palette()
+        status_colors = theme_manager.get_status_colors()
+
+        success_color = status_colors.get("success", palette.success)
+        text_color = palette.text
+
+        if self.confirm_label:
+            self.confirm_label.setStyleSheet(f"background-color: transparent; color: {text_color};")
+        if self.progress_label:
+            self.progress_label.setStyleSheet(
+                f"background-color: transparent; color: {text_color};"
+            )
+        if self.result_label:
+            self.result_label.setStyleSheet(f"background-color: transparent; color: {text_color};")
+        if self.speed_label:
+            self.speed_label.setStyleSheet(
+                f"background-color: transparent; color: {success_color};"
+            )
 
     def start_update(self):
         """Switch to progress view and emit signal to start update."""
@@ -311,13 +341,13 @@ class RetroAchievementsPage(QWidget):
         api_layout.addLayout(test_layout)
 
         # Info label
-        info_label = QLabel(
+        self._api_info_label = QLabel(
             "Get your API key from: "
             '<a href="https://retroachievements.org/controlpanel.php">RetroAchievements Control Panel</a>'
         )
-        info_label.setOpenExternalLinks(True)
-        info_label.setStyleSheet("color: #888; font-size: 11px;")
-        api_layout.addWidget(info_label)
+        self._api_info_label.setOpenExternalLinks(True)
+        self._api_info_label.setStyleSheet("font-size: 11px;")
+        api_layout.addWidget(self._api_info_label)
 
         layout.addWidget(api_group)
 
@@ -355,15 +385,7 @@ class RetroAchievementsPage(QWidget):
         self._cache_table.verticalHeader().setVisible(False)  # Hide row numbers to save space
 
         # Remove cell padding/margins with custom stylesheet
-        self._cache_table.setStyleSheet("""
-            QTableWidget::item {
-                padding: 1px;
-                margin: 0px;
-            }
-            QTableWidget {
-                gridline-color: rgba(255, 255, 255, 0.1);
-            }
-        """)
+        self._cache_table.setStyleSheet("")
         cache_layout.addWidget(self._cache_table)
 
         # Cache actions
@@ -384,7 +406,7 @@ class RetroAchievementsPage(QWidget):
         cache_actions_layout.addStretch()
 
         self._clear_cache_btn = QPushButton("Clear All Caches")
-        self._clear_cache_btn.setStyleSheet("QPushButton { color: #ff6b6b; }")
+        self._clear_cache_btn.setStyleSheet("")
         self._clear_cache_btn.clicked.connect(self._clear_all_caches)
         cache_actions_layout.addWidget(self._clear_cache_btn)
 
@@ -392,8 +414,42 @@ class RetroAchievementsPage(QWidget):
 
         layout.addWidget(cache_group)
 
+        self._apply_theme()
+
         # Add stretch at bottom
         layout.addStretch()
+
+    def apply_theme(self) -> None:
+        """Public hook to refresh themed styling."""
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        """Apply theme colors to supplemental widgets."""
+        theme_manager = get_theme_manager()
+        palette = theme_manager.get_palette()
+        status_colors = theme_manager.get_status_colors()
+
+        secondary_text = palette.text_secondary
+        danger_color = status_colors.get("error", palette.error)
+
+        if hasattr(self, "_api_info_label") and self._api_info_label:
+            self._api_info_label.setStyleSheet(f"color: {secondary_text}; font-size: 11px;")
+        if hasattr(self, "_cache_info_label") and self._cache_info_label:
+            self._cache_info_label.setStyleSheet(f"color: {secondary_text};")
+        if hasattr(self, "_clear_cache_btn") and self._clear_cache_btn:
+            self._clear_cache_btn.setStyleSheet(f"QPushButton {{ color: {danger_color}; }}")
+
+        if hasattr(self, "_cache_table") and self._cache_table:
+            grid_color = theme_manager.color_with_alpha(palette.border_light, 0.6)
+            self._cache_table.setStyleSheet(f"""
+                QTableWidget::item {{
+                    padding: 1px;
+                    margin: 0px;
+                }}
+                QTableWidget {{
+                    gridline-color: {grid_color};
+                }}
+            """)
 
     def _test_connection(self):
         """Test the RetroAchievements API connection."""
@@ -542,6 +598,9 @@ class RetroAchievementsPage(QWidget):
             # Get progress sync information
             progress_sync_info = self._get_progress_sync_info()
 
+            theme_manager = get_theme_manager()
+            palette = theme_manager.get_palette()
+
             # Combine cached and uncached platforms
             all_platform_stats = {}
 
@@ -561,6 +620,8 @@ class RetroAchievementsPage(QWidget):
                     }
 
             # Update table
+            self._cache_table.clearContents()
+            self._cache_table.clearSpans()
             self._cache_table.setRowCount(len(all_platform_stats))
             row = 0
 
@@ -652,27 +713,32 @@ class RetroAchievementsPage(QWidget):
                 action_cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
                 # Create icon button for update
-                action_btn = QPushButton()
+                action_btn = QToolButton()
+                action_btn.setAutoRaise(True)
+                action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                action_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
                 action_btn.setIcon(
                     self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
                 )
                 action_btn.setIconSize(QSize(16, 16))
-                action_btn.setMaximumSize(24, 24)
-                action_btn.setMinimumSize(24, 24)
+                action_btn.setFixedSize(24, 24)
                 action_btn.setToolTip(f"Update {info['name']} cache and sync progress")
-                action_btn.setStyleSheet("""
-                    QPushButton {
+                hover_bg = theme_manager.color_with_alpha("overlay", 0.16)
+                pressed_bg = theme_manager.color_with_alpha("primary", 0.3)
+                action_btn.setStyleSheet(f"""
+                    QToolButton {{
                         border: none;
-                        padding: 2px;
+                        padding: 0px;
                         background: transparent;
-                    }
-                    QPushButton:hover {
-                        background: rgba(255, 255, 255, 0.1);
+                    }}
+                    QToolButton:hover {{
+                        background: {hover_bg};
                         border-radius: 3px;
-                    }
-                    QPushButton:pressed {
-                        background: rgba(255, 255, 255, 0.2);
-                    }
+                    }}
+                    QToolButton:pressed {{
+                        background: {pressed_bg};
+                        border-radius: 3px;
+                    }}
                 """)
                 action_btn.clicked.connect(
                     lambda checked,

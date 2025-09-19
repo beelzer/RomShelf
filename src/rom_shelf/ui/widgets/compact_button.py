@@ -1,85 +1,105 @@
-"""Compact button widget for use in table cells and other space-constrained areas."""
+"""Compact button widgets styled using theme tokens."""
+
+from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QPushButton
 
+from ..themes import get_theme_manager
+
 
 class CompactButton(QPushButton):
-    """A compact button designed to fit nicely in table cells."""
+    """A compact button designed to fit nicely in dense layouts."""
 
-    # Shared style for all compact buttons
-    COMPACT_STYLE = """
-        QPushButton {
-            padding: 0px 6px;
-            margin: 0px;
-            min-height: 20px;
-            max-height: 20px;
-            font-size: 11px;
-            border: 1px solid rgba(128, 128, 128, 0.5);
-            border-radius: 2px;
-            background: qlineargradient(
-                x1: 0, y1: 0, x2: 0, y2: 1,
-                stop: 0 rgba(255, 255, 255, 0.08),
-                stop: 1 rgba(255, 255, 255, 0.02)
-            );
-        }
-        QPushButton:hover {
-            background: qlineargradient(
-                x1: 0, y1: 0, x2: 0, y2: 1,
-                stop: 0 rgba(255, 255, 255, 0.12),
-                stop: 1 rgba(255, 255, 255, 0.06)
-            );
-            border-color: rgba(255, 255, 255, 0.3);
-        }
-        QPushButton:pressed {
-            background: rgba(0, 0, 0, 0.2);
-            padding-top: 1px;
-        }
-        QPushButton:disabled {
-            color: rgba(128, 128, 128, 0.5);
-            border-color: rgba(128, 128, 128, 0.2);
-            background: transparent;
-        }
-    """
-
-    def __init__(self, text: str = "", parent=None):
-        """Initialize the compact button.
-
-        Args:
-            text: Button text
-            parent: Parent widget
-        """
+    def __init__(self, text: str = "", parent=None) -> None:
         super().__init__(text, parent)
-        self.setStyleSheet(self.COMPACT_STYLE)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._apply_theme()
+
+    def apply_theme(self) -> None:
+        """Public hook so callers can reapply theme overrides."""
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        theme_manager = get_theme_manager()
+        palette = theme_manager.get_palette()
+
+        base_bg = theme_manager.color_with_alpha("overlay", 0.12)
+        hover_bg = theme_manager.color_with_alpha("overlay", 0.2)
+        pressed_bg = theme_manager.color_with_alpha("primary", 0.35)
+        border_color = palette.border_light
+        text_color = palette.text
+        disabled_color = palette.text_disabled
+
+        style = f"""
+            QPushButton {{
+                padding: 0px 6px;
+                margin: 0px;
+                min-height: 20px;
+                max-height: 20px;
+                font-size: 11px;
+                border: 1px solid {border_color};
+                border-radius: 2px;
+                background: {base_bg};
+                color: {text_color};
+            }}
+            QPushButton:hover {{
+                background: {hover_bg};
+                border-color: {palette.primary};
+            }}
+            QPushButton:pressed {{
+                background: {pressed_bg};
+                color: {palette.text_on_primary};
+            }}
+            QPushButton:disabled {{
+                background: transparent;
+                color: {disabled_color};
+                border-color: {border_color};
+            }}
+        """
+        self.setStyleSheet(style)
 
 
 class TableCellButton(CompactButton):
-    """Specialized compact button for table cells with even tighter constraints."""
+    """Specialised compact button for table cells with tighter constraints."""
 
-    TABLE_CELL_STYLE = """
-        QPushButton {
-            padding: 1px 6px;
-            margin: 0px;
-            min-width: 50px;
-            height: 20px;
-            min-height: 20px;
-            max-height: 20px;
-            font-size: 11px;
-            border: 1px solid rgba(128, 128, 128, 0.4);
-            border-radius: 2px;
-            background: rgba(255, 255, 255, 0.03);
-        }
-        QPushButton:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.4);
-        }
-        QPushButton:pressed {
-            background: rgba(0, 0, 0, 0.15);
-        }
-    """
+    def _apply_theme(self) -> None:
+        theme_manager = get_theme_manager()
+        palette = theme_manager.get_palette()
 
-    def __init__(self, text: str = "", parent=None):
-        """Initialize the table cell button."""
-        super().__init__(text, parent)
-        self.setStyleSheet(self.TABLE_CELL_STYLE)
+        base_bg = theme_manager.color_with_alpha("overlay", 0.08)
+        hover_bg = theme_manager.color_with_alpha("overlay", 0.18)
+        pressed_bg = theme_manager.color_with_alpha("primary", 0.3)
+        border_color = palette.border_light
+        text_color = palette.text
+        disabled_color = palette.text_disabled
+
+        style = f"""
+            QPushButton {{
+                padding: 1px 6px;
+                margin: 0px;
+                min-width: 50px;
+                height: 20px;
+                min-height: 20px;
+                max-height: 20px;
+                font-size: 11px;
+                border: 1px solid {border_color};
+                border-radius: 2px;
+                background: {base_bg};
+                color: {text_color};
+            }}
+            QPushButton:hover {{
+                background: {hover_bg};
+                border-color: {palette.primary};
+            }}
+            QPushButton:pressed {{
+                background: {pressed_bg};
+                color: {palette.text_on_primary};
+            }}
+            QPushButton:disabled {{
+                background: transparent;
+                color: {disabled_color};
+                border-color: {border_color};
+            }}
+        """
+        self.setStyleSheet(style)

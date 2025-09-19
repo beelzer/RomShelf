@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.rom_database import get_rom_database
+from ..themes import get_theme_manager
 
 
 class HashDelegate(QStyledItemDelegate):
@@ -30,11 +31,15 @@ class HashDelegate(QStyledItemDelegate):
             "header": "H",  # Header hash
         }
 
-        # Colors for different hash types
-        self.hash_colors = {
-            "md5": "#4CAF50",  # Green
-            "crc32": "#2196F3",  # Blue
-            "header": "#FF9800",  # Orange
+    def _get_hash_colors(self) -> dict[str, str]:
+        """Resolve themed colors for each hash type."""
+        theme_manager = get_theme_manager()
+        palette = theme_manager.get_palette()
+        status_colors = theme_manager.get_status_colors()
+        return {
+            "md5": status_colors.get("success", palette.success),
+            "crc32": status_colors.get("info", palette.info),
+            "header": status_colors.get("warning", palette.warning),
         }
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
@@ -82,6 +87,8 @@ class HashDelegate(QStyledItemDelegate):
         font.setPointSize(font.pointSize() - 1)
         painter.setFont(font)
 
+        hash_colors = self._get_hash_colors()
+
         # Draw hash indicators and store their positions
         indicator_width = 20
         indicators_drawn = []
@@ -92,7 +99,7 @@ class HashDelegate(QStyledItemDelegate):
         if fingerprint.md5_hash:
             rect = QRect(x, y, indicator_width, height)
             self._hash_rects[index_key]["md5"] = rect
-            painter.setPen(self.hash_colors["md5"])
+            painter.setPen(hash_colors["md5"])
             painter.drawText(rect, Qt.AlignCenter, self.hash_symbols["md5"])
             indicators_drawn.append("md5")
             x += indicator_width
@@ -101,7 +108,7 @@ class HashDelegate(QStyledItemDelegate):
         if fingerprint.crc32:
             rect = QRect(x, y, indicator_width, height)
             self._hash_rects[index_key]["crc32"] = rect
-            painter.setPen(self.hash_colors["crc32"])
+            painter.setPen(hash_colors["crc32"])
             painter.drawText(rect, Qt.AlignCenter, self.hash_symbols["crc32"])
             indicators_drawn.append("crc32")
             x += indicator_width
@@ -110,7 +117,7 @@ class HashDelegate(QStyledItemDelegate):
         if fingerprint.header_hash:
             rect = QRect(x, y, indicator_width, height)
             self._hash_rects[index_key]["header"] = rect
-            painter.setPen(self.hash_colors["header"])
+            painter.setPen(hash_colors["header"])
             painter.drawText(rect, Qt.AlignCenter, self.hash_symbols["header"])
             indicators_drawn.append("header")
             x += indicator_width

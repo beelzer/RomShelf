@@ -405,28 +405,13 @@ class ScanProgressDock(QDockWidget):
         if not self._detail_text:
             return
 
-        theme = get_theme_manager().get_current_theme()
-        if theme:
-            colors = theme.colors
-            color_map = {
-                "info": colors.info,
-                "success": colors.success,
-                "warning": colors.warning,
-                "error": colors.error,
-            }
-            timestamp_color = colors.text_secondary
-        else:
-            color_map = {
-                "info": "#ffffff",
-                "success": "#4CAF50",
-                "warning": "#FFA726",
-                "error": "#EF5350",
-            }
-            timestamp_color = "#888888"
+        theme_manager = get_theme_manager()
+        status_colors = theme_manager.get_status_colors()
+        timestamp_color = theme_manager.get_color("text_secondary")
 
         html_lines = []
         for timestamp, message, message_type in self._detail_messages:
-            color = color_map.get(message_type.lower(), "#ffffff")
+            color = status_colors.get(message_type.lower(), status_colors.get("info"))
             html_lines.append(
                 f'<span style="color: {timestamp_color}">[{timestamp}]</span> '
                 f'<span style="color: {color}">{message}</span>'
@@ -446,29 +431,27 @@ class ScanProgressDock(QDockWidget):
 
     def _apply_theme(self) -> None:
         """Apply the current theme to all UI elements."""
-        theme = get_theme_manager().get_current_theme()
+        theme_manager = get_theme_manager()
+        palette = theme_manager.get_palette()
+        status_colors = theme_manager.get_status_colors()
 
-        if theme:
-            colors = theme.colors
-            text_color = colors.text
-            secondary_text = colors.text_secondary
-            surface_color = colors.surface
-            border_color = colors.border
-            success_color = colors.success
-            warning_color = colors.warning
-            error_color = colors.error
-            primary_color = colors.primary
-            hover_color = colors.hover
-        else:
-            text_color = "#e0e0e0"
-            secondary_text = "#b0b0b0"
-            surface_color = "#2b2b2b"
-            border_color = "rgba(255, 255, 255, 0.1)"
-            success_color = "#4CAF50"
-            warning_color = "#FFA726"
-            error_color = "#EF5350"
-            primary_color = "#2196F3"
-            hover_color = "rgba(255, 255, 255, 0.08)"
+        text_color = palette.text
+        secondary_text = palette.text_secondary
+        surface_color = palette.surface
+        surface_variant = palette.surface_variant
+        border_color = palette.border
+        border_light = palette.border_light
+        primary_color = palette.primary
+        success_color = status_colors.get("success", palette.success)
+        warning_color = status_colors.get("warning", palette.warning)
+        error_color = status_colors.get("error", palette.error)
+        info_color = status_colors.get("info", palette.info)
+        text_on_primary = palette.text_on_primary
+
+        soft_overlay = theme_manager.color_with_alpha("overlay", 0.15)
+        hover_overlay = theme_manager.color_with_alpha("overlay", 0.25)
+        detail_overlay = theme_manager.color_with_alpha("overlay", 0.4)
+        progress_track = theme_manager.color_with_alpha("overlay", 0.1)
 
         # Main container with subtle border
         if self._main_container:
@@ -485,7 +468,7 @@ class ScanProgressDock(QDockWidget):
                 #statusIcon {{
                     background-color: {primary_color};
                     border-radius: 12px;
-                    color: white;
+                    color: {text_on_primary};
                     font-size: 14px;
                 }}
             """)
@@ -505,7 +488,7 @@ class ScanProgressDock(QDockWidget):
                 #scanProgressBar {{
                     border: none;
                     border-radius: 10px;
-                    background-color: rgba(255, 255, 255, 0.05);
+                    background-color: {progress_track};
                     text-align: center;
                     color: {text_color};
                     font-size: 11px;
@@ -521,14 +504,24 @@ class ScanProgressDock(QDockWidget):
         # Action buttons
         button_style = f"""
             QPushButton {{
-                background-color: transparent;
-                border: 1px solid {border_color};
+                background-color: {soft_overlay};
+                color: {text_color};
+                border: 1px solid {border_light};
                 border-radius: 16px;
                 padding: 4px;
             }}
             QPushButton:hover {{
-                background-color: {hover_color};
+                background-color: {hover_overlay};
                 border-color: {primary_color};
+            }}
+            QPushButton:pressed {{
+                background-color: {theme_manager.color_with_alpha('primary', 0.35)};
+                color: {text_on_primary};
+            }}
+            QPushButton:disabled {{
+                background-color: transparent;
+                color: {palette.text_disabled};
+                border-color: {border_light};
             }}
         """
 
@@ -546,7 +539,6 @@ class ScanProgressDock(QDockWidget):
 
         # Statistics styling
         if self._stats_container:
-            # Style each stat item
             stat_items = self._stats_container.findChildren(QWidget)
             for item in stat_items:
                 name = item.objectName()
@@ -627,7 +619,7 @@ class ScanProgressDock(QDockWidget):
             if header:
                 header.setStyleSheet(f"""
                     #detailHeader {{
-                        color: {text_color};
+                        color: {secondary_text};
                         font-weight: 600;
                         font-size: 12px;
                         text-transform: uppercase;
@@ -640,13 +632,20 @@ class ScanProgressDock(QDockWidget):
         if self._detail_text:
             self._detail_text.setStyleSheet(f"""
                 #detailText {{
-                    background-color: rgba(0, 0, 0, 0.2);
-                    color: {text_color};
+                    background-color: {detail_overlay};
+                    color: {info_color};
                     border: 1px solid {border_color};
                     border-radius: 8px;
                     padding: 8px;
                     font-family: 'Consolas', 'Monaco', monospace;
                     font-size: 11px;
+                }}
+            """)
+
+        if self._stats_container:
+            self._stats_container.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {surface_variant};
                 }}
             """)
 

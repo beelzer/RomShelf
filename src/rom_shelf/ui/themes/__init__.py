@@ -5,6 +5,7 @@ from .modern_dark_theme import ModernDarkTheme
 from .modern_light_theme import ModernLightTheme
 from .theme_manager import ThemeManager, get_theme_manager
 from .themed_widget import ThemeHelper
+from .twilight_theme import TwilightTheme
 
 __all__ = [
     "ThemeManager",
@@ -12,5 +13,6 @@ __all__ = [
     "BaseTheme",
     "ModernDarkTheme",
     "ModernLightTheme",
+    "TwilightTheme",
     "ThemeHelper",
 ]

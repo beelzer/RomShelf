@@ -32,13 +32,16 @@ class InterfacePage(SettingsPage):
         self._theme_group = QButtonGroup(self)
         self._light_radio = QRadioButton("Light")
         self._dark_radio = QRadioButton("Dark")
+        self._twilight_radio = QRadioButton("Twilight")
 
         self._theme_group.addButton(self._light_radio, 0)
         self._theme_group.addButton(self._dark_radio, 1)
+        self._theme_group.addButton(self._twilight_radio, 2)
 
         theme_controls = QHBoxLayout()
         theme_controls.addWidget(self._light_radio)
         theme_controls.addWidget(self._dark_radio)
+        theme_controls.addWidget(self._twilight_radio)
         theme_controls.addStretch()
 
         theme_layout.addLayout(theme_controls)
@@ -117,6 +120,7 @@ class InterfacePage(SettingsPage):
         # Connect signals
         self._light_radio.toggled.connect(lambda: self.settings_changed.emit())
         self._dark_radio.toggled.connect(lambda: self.settings_changed.emit())
+        self._twilight_radio.toggled.connect(lambda: self.settings_changed.emit())
         self._font_slider.valueChanged.connect(lambda v: self._font_value_label.setText(f"{v}pt"))
         self._font_slider.valueChanged.connect(lambda: self.settings_changed.emit())
         self._row_height_slider.valueChanged.connect(
@@ -128,8 +132,11 @@ class InterfacePage(SettingsPage):
 
     def load_settings(self, settings: Settings) -> None:
         """Load settings into the interface page."""
-        if settings.theme == "light":
+        theme_value = (settings.theme or "dark").lower()
+        if theme_value == "light":
             self._light_radio.setChecked(True)
+        elif theme_value in ("twilight", "twilight violet"):
+            self._twilight_radio.setChecked(True)
         else:
             self._dark_radio.setChecked(True)
 
@@ -152,7 +159,12 @@ class InterfacePage(SettingsPage):
         # Check if widgets still exist before accessing them
         try:
             if hasattr(self, "_light_radio") and self._light_radio is not None:
-                settings.theme = "light" if self._light_radio.isChecked() else "dark"
+                if self._light_radio.isChecked():
+                    settings.theme = "light"
+                elif self._twilight_radio.isChecked():
+                    settings.theme = "twilight"
+                else:
+                    settings.theme = "dark"
             if hasattr(self, "_font_slider") and self._font_slider is not None:
                 settings.font_size = self._font_slider.value()
             if hasattr(self, "_row_height_slider") and self._row_height_slider is not None:

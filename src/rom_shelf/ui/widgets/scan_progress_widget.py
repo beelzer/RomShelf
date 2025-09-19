@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..themes import get_theme_manager
+
 try:
     from PySide6.QtWidgets import QWIDGETSIZE_MAX
 except ImportError:
@@ -101,18 +103,7 @@ class ScanProgressWidget(QWidget):
         self._expand_button.setFixedSize(24, 24)
         self._expand_button.setToolTip("Show detailed progress")
         self._expand_button.clicked.connect(self._toggle_expand)
-        self._expand_button.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                padding: 0px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 3px;
-            }
-        """)
+        self._expand_button.setStyleSheet("")
         compact_layout.addWidget(self._expand_button)
 
         container_layout.addWidget(compact_bar)
@@ -153,22 +144,22 @@ class ScanProgressWidget(QWidget):
 
         # New ROMs
         self._new_roms_label = QLabel("New: 0")
-        self._new_roms_label.setStyleSheet("color: #4CAF50; padding-left: 10px;")
+        self._new_roms_label.setStyleSheet("padding-left: 10px;")
         detail_frame_layout.addWidget(self._new_roms_label)
 
         # Modified ROMs
         self._modified_roms_label = QLabel("Modified: 0")
-        self._modified_roms_label.setStyleSheet("color: #FFA726; padding-left: 10px;")
+        self._modified_roms_label.setStyleSheet("padding-left: 10px;")
         detail_frame_layout.addWidget(self._modified_roms_label)
 
         # Removed ROMs
         self._removed_roms_label = QLabel("Removed: 0")
-        self._removed_roms_label.setStyleSheet("color: #EF5350; padding-left: 10px;")
+        self._removed_roms_label.setStyleSheet("padding-left: 10px;")
         detail_frame_layout.addWidget(self._removed_roms_label)
 
         # Existing ROMs
         self._existing_roms_label = QLabel("Existing: 0")
-        self._existing_roms_label.setStyleSheet("color: #888888; padding-left: 10px;")
+        self._existing_roms_label.setStyleSheet("padding-left: 10px;")
         detail_frame_layout.addWidget(self._existing_roms_label)
 
         # Hidden labels for compatibility (keep internal tracking but don't display)
@@ -187,16 +178,9 @@ class ScanProgressWidget(QWidget):
         self._detail_log.setReadOnly(True)
         self._detail_log.setMinimumHeight(150)
         self._detail_log.setMaximumHeight(250)
-        self._detail_log.setStyleSheet("""
-            QTextEdit {
-                background: rgba(0, 0, 0, 0.2);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 4px;
-                padding: 4px;
-                font-family: monospace;
-                font-size: 11px;
-            }
-        """)
+        self._detail_log.setStyleSheet("")
+
+        self._update_detail_log()
 
         # Add panels to horizontal layout
         detail_layout.addWidget(left_panel, 0)  # Don't stretch
@@ -214,6 +198,78 @@ class ScanProgressWidget(QWidget):
 
         # Ensure widget expands horizontally
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        self._apply_theme()
+
+    def apply_theme(self) -> None:
+        """Public hook to refresh themed styling."""
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        """Apply the active theme to child widgets."""
+        theme_manager = get_theme_manager()
+        palette = theme_manager.get_palette()
+        status_colors = theme_manager.get_status_colors()
+
+        text_color = palette.text
+        secondary_text = palette.text_secondary
+        success_color = status_colors.get("success", palette.success)
+        warning_color = status_colors.get("warning", palette.warning)
+        error_color = status_colors.get("error", palette.error)
+        existing_color = secondary_text
+        text_on_primary = palette.text_on_primary
+
+        soft_overlay = theme_manager.color_with_alpha("overlay", 0.12)
+        pressed_overlay = theme_manager.color_with_alpha("primary", 0.3)
+        detail_overlay = theme_manager.color_with_alpha("overlay", 0.35)
+        border_color = palette.border
+
+        if self._status_label:
+            self._status_label.setStyleSheet(f"color: {text_color};")
+
+        if self._operation_label:
+            self._operation_label.setStyleSheet(f"font-weight: bold; color: {text_color};")
+
+        if self._expand_button:
+            self._expand_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {text_color};
+                    border: none;
+                    padding: 0px;
+                    font-size: 12px;
+                }}
+                QPushButton:hover {{
+                    background-color: {soft_overlay};
+                    border-radius: 3px;
+                }}
+                QPushButton:pressed {{
+                    background-color: {soft_overlay};
+                    color: {palette.text_on_primary};
+                }}
+            """)
+
+        if self._new_roms_label:
+            self._new_roms_label.setStyleSheet(f"color: {success_color}; padding-left: 10px;")
+        if self._modified_roms_label:
+            self._modified_roms_label.setStyleSheet(f"color: {warning_color}; padding-left: 10px;")
+        if self._removed_roms_label:
+            self._removed_roms_label.setStyleSheet(f"color: {error_color}; padding-left: 10px;")
+        if self._existing_roms_label:
+            self._existing_roms_label.setStyleSheet(f"color: {existing_color}; padding-left: 10px;")
+
+        if self._detail_log:
+            self._detail_log.setStyleSheet(f"""
+                QTextEdit {{
+                    background: {detail_overlay};
+                    border: 1px solid {border_color};
+                    border-radius: 6px;
+                    padding: 8px;
+                    font-family: 'Consolas', 'Monaco', monospace;
+                    font-size: 11px;
+                    color: {text_color};
+                }}
+            """)
 
     def _calculate_expanded_height(self) -> int:
         """Calculate the natural height of the detail container for animation."""
@@ -427,16 +483,10 @@ class ScanProgressWidget(QWidget):
     def _add_detail_message(self, message: str, message_type: str = "info"):
         """Internal method to add message with formatting."""
         # Color coding based on type
-        colors = {
-            "info": "#ffffff",
-            "success": "#4CAF50",
-            "warning": "#FFA726",
-            "error": "#EF5350",
-        }
-        color = colors.get(message_type, "#ffffff")
+        level = message_type.lower()
 
         # Add to messages list
-        self._detail_messages.append((message, color))
+        self._detail_messages.append((message, level))
 
         # Keep only last N messages
         if len(self._detail_messages) > self._max_detail_messages:
@@ -454,7 +504,12 @@ class ScanProgressWidget(QWidget):
             if len(self._detail_messages) > 100
             else self._detail_messages
         )
-        for message, color in messages_to_show:
+        theme_manager = get_theme_manager()
+        status_colors = theme_manager.get_status_colors()
+        default_color = status_colors.get("info", theme_manager.get_color("text"))
+
+        for message, level in messages_to_show:
+            color = status_colors.get(level, default_color)
             html_lines.append(f'<span style="color: {color};">{message}</span>')
 
         self._detail_log.setHtml("<br>".join(html_lines))
