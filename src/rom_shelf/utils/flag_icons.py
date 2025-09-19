@@ -1,4 +1,9 @@
-"""Flag icon utilities for ROM regions."""
+"""Flag icon utilities for ROM regions.
+
+Flag SVG files are sourced from:
+- https://github.com/lipis/flag-icons (MIT License)
+- Custom flags created for special regions (world, unknown, asia, proto)
+"""
 
 from pathlib import Path
 
@@ -8,7 +13,11 @@ from PySide6.QtSvg import QSvgRenderer
 
 
 class FlagIcons:
-    """Utility class for managing region flag display using SVG files."""
+    """Utility class for managing region flag display using SVG files.
+
+    Flags are loaded from the images/flags directory and include country flags
+    from the flag-icons project as well as custom flags for special regions.
+    """
 
     # Map region codes to ISO country codes for SVG file lookup
     REGION_TO_ISO: dict[str, str] = {
@@ -23,6 +32,7 @@ class FlagIcons:
         "Japan": "jp",
         "J": "jp",
         "World": "world",
+        "Unknown": "unknown",
         # Countries
         "GER": "de",
         "Germany": "de",
@@ -82,6 +92,7 @@ class FlagIcons:
         "Japan": "Japan",
         "J": "Japan",
         "World": "World",
+        "Unknown": "Unknown",
         # Countries
         "GER": "Germany",
         "Germany": "Germany",
@@ -205,7 +216,8 @@ class FlagIcons:
             if svg_path.exists():
                 iso_code = region.lower()
             else:
-                return None
+                # Return unknown flag for unmapped regions
+                return FlagIcons._load_svg_flag("unknown", size)
 
         # Try to load SVG flag
         return FlagIcons._load_svg_flag(iso_code, size)
@@ -247,19 +259,22 @@ class FlagIcons:
             sub_region = sub_region.strip()
             iso_code = FlagIcons._get_iso_code(sub_region)
 
-            if iso_code:
-                # Load and render SVG in section
-                flags_dir = FlagIcons._get_flags_directory()
-                svg_path = flags_dir / f"{iso_code}.svg"
+            if not iso_code:
+                # Use unknown flag for unmapped regions
+                iso_code = "unknown"
 
-                if svg_path.exists():
-                    renderer = QSvgRenderer(str(svg_path))
-                    if renderer.isValid():
-                        from PySide6.QtCore import QRectF
+            # Load and render SVG in section
+            flags_dir = FlagIcons._get_flags_directory()
+            svg_path = flags_dir / f"{iso_code}.svg"
 
-                        x = i * section_width
-                        target_rect = QRectF(x, 0, section_width, size.height())
-                        renderer.render(painter, target_rect)
+            if svg_path.exists():
+                renderer = QSvgRenderer(str(svg_path))
+                if renderer.isValid():
+                    from PySide6.QtCore import QRectF
+
+                    x = i * section_width
+                    target_rect = QRectF(x, 0, section_width, size.height())
+                    renderer.render(painter, target_rect)
 
         # Add border
         from PySide6.QtGui import QColor

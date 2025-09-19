@@ -129,6 +129,7 @@ class ROMTableView(QTableView):
                 [
                     TableColumn("name", "Name", 300),  # Will stretch, width is minimum
                     TableColumn("platform", "Platform", 120),
+                    TableColumn("parser_format", "Parser", 80),  # Parser format used
                     TableColumn("region", "Region", 100),
                     TableColumn("language", "Language", 100),
                     TableColumn("version", "Version", 90),

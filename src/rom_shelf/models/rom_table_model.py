@@ -169,6 +169,9 @@ class ROMTableModel(QAbstractTableModel):
             # Return the language data as fallback if delegate doesn't work
             # The delegate should override this display
             return entry.metadata.get("language", "")
+        elif key == "parser_format":
+            # Return the parser format used to extract metadata
+            return entry.metadata.get("parser_format", "None")
         elif key in entry.metadata:
             # Return any other metadata field
             return str(entry.metadata.get(key, ""))
@@ -233,6 +236,9 @@ class ROMTableModel(QAbstractTableModel):
             return entry.platform_id.lower()
         elif key == "hash":
             return self._get_rom_hash(entry).lower()
+        elif key == "parser_format":
+            # Sort parser format alphabetically
+            return entry.metadata.get("parser_format", "zzz_none").lower()
         elif key in entry.metadata:
             value = entry.metadata[key]
             if isinstance(value, str):

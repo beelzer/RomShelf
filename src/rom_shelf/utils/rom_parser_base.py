@@ -107,8 +107,14 @@ class BaseROMParser(ABC):
     """Abstract base class for ROM naming convention parsers."""
 
     # Shared region/country mappings used by multiple conventions
+    # The key is the standardized name that will be returned
     REGION_MAPPINGS = {
-        # Full names (No-Intro style)
+        # Primary regions - use the most common short codes
+        "USA": ["US", "U", "USA", "United States"],
+        "Europe": ["EU", "E", "Europe", "EUR"],
+        "Japan": ["JP", "J", "Japan", "JPN"],
+        "World": ["W", "World"],
+        # Countries
         "Argentina": ["AR", "Argentina"],
         "Asia": ["AS", "Asia"],
         "Australia": ["AU", "A", "Australia"],
@@ -119,9 +125,8 @@ class BaseROMParser(ABC):
         "Chile": ["CL", "Chile"],
         "China": ["CN", "C", "China"],
         "Colombia": ["CO", "Colombia"],
-        "Czech Republic": ["CZ", "Czech"],
+        "Czech Republic": ["CZ", "Czech", "Czech Republic"],
         "Denmark": ["DK", "Z", "Denmark"],
-        "Europe": ["EU", "E", "Europe"],
         "Finland": ["FI", "Y", "Finland"],
         "France": ["FR", "F", "France"],
         "Germany": ["DE", "G", "Germany"],
@@ -132,7 +137,6 @@ class BaseROMParser(ABC):
         "Ireland": ["IE", "Ireland"],
         "Israel": ["IL", "Israel"],
         "Italy": ["IT", "I", "Italy"],
-        "Japan": ["JP", "J", "Japan"],
         "Korea": ["KR", "K", "Korea", "South Korea"],
         "Latin America": ["Latin America"],
         "Mexico": ["MX", "Mexico"],
@@ -151,10 +155,8 @@ class BaseROMParser(ABC):
         "Switzerland": ["CH", "Switzerland"],
         "Taiwan": ["TW", "Taiwan"],
         "Turkey": ["TR", "Turkey"],
-        "United Kingdom": ["GB", "UK"],
+        "United Kingdom": ["GB", "UK", "United Kingdom"],
         "Ukraine": ["UA", "Ukraine"],
-        "United States": ["US", "U", "USA"],
-        "World": ["W", "World"],
         "Unknown": ["-", "Unknown"],
     }
 
@@ -580,7 +582,10 @@ class ParserRegistry:
         for parser in self.parsers:
             if parser.can_parse(filename):
                 metadata = parser.parse(filename)
-                return parser.to_dict(metadata)
+                result = parser.to_dict(metadata)
+                # Add the parser format name to the metadata
+                result["parser_format"] = parser.get_format_name()
+                return result
 
         return None
 

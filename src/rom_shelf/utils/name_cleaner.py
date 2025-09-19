@@ -93,7 +93,10 @@ def _generic_parse(original_name: str) -> dict[str, Any]:
     Returns:
         Dictionary with basic metadata extraction
     """
-    metadata = {"clean_name": clean_game_name(original_name)}
+    metadata = {
+        "clean_name": clean_game_name(original_name),
+        "parser_format": "Generic",
+    }
 
     # Extract region information
     # First, try to match multiple regions (e.g., "USA, Europe")
