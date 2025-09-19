@@ -42,6 +42,8 @@ class PlatformsPage(SettingsPage):
     def _setup_ui(self) -> None:
         """Set up the master platform directory management UI."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
 
         # Header
         header_label = QLabel("Platform Directory Management")

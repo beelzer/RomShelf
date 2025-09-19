@@ -6,6 +6,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QWidget
 
 from ...core.settings import Settings
+from ..themes.themed_widget import ThemeHelper
 
 
 def normalize_path_display(path_str: str) -> str:
@@ -26,7 +27,10 @@ class SettingsPage(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the settings page."""
         super().__init__(parent)
+        self.setObjectName("settingsPage")
+        self.setProperty("formVariant", "compact")
         self._setup_ui()
+        ThemeHelper.apply_compact_form_style(self)
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""

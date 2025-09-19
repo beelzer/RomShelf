@@ -2,11 +2,13 @@
 
 from typing import Any
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
+    QFrame,
     QHBoxLayout,
     QPushButton,
+    QScrollArea,
     QSplitter,
     QStackedWidget,
     QTreeWidget,
@@ -34,6 +36,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self._settings_manager = settings_manager
         self._pages: dict[str, Any] = {}
+        self._page_containers: dict[str, QWidget] = {}
         self._setup_ui()
         self._load_settings()
 
@@ -89,6 +92,24 @@ class SettingsDialog(QDialog):
             first_item.setSelected(True)
             self._on_category_selected(first_item, 0)
 
+    def _create_scroll_container(self, page: QWidget) -> QScrollArea:
+        """Wrap a settings page in a scroll area to preserve sizing and allow overflow."""
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setContentsMargins(0, 0, 0, 0)
+        scroll_area.setWidget(page)
+        return scroll_area
+
+    def _register_page(self, page_id: str, page: QWidget) -> None:
+        """Store the page reference and add a scrollable container to the stack."""
+        self._pages[page_id] = page
+        container = self._create_scroll_container(page)
+        self._page_containers[page_id] = container
+        self._page_stack.addWidget(container)
+
     def _setup_categories(self) -> None:
         """Set up the category tree and corresponding pages."""
         # Interface category
@@ -98,8 +119,7 @@ class SettingsDialog(QDialog):
 
         interface_page = InterfacePage()
         interface_page.settings_changed.connect(self._on_settings_changed)
-        self._pages["interface"] = interface_page
-        self._page_stack.addWidget(interface_page)
+        self._register_page("interface", interface_page)
 
         # RetroAchievements category
         ra_item = QTreeWidgetItem(self._category_tree)
@@ -108,8 +128,7 @@ class SettingsDialog(QDialog):
 
         ra_page = RetroAchievementsPage(self._settings_manager)
         ra_page.settings_changed.connect(self._on_settings_changed)
-        self._pages["retroachievements"] = ra_page
-        self._page_stack.addWidget(ra_page)
+        self._register_page("retroachievements", ra_page)
 
         # Platforms category
         platforms_item = QTreeWidgetItem(self._category_tree)
@@ -118,8 +137,7 @@ class SettingsDialog(QDialog):
 
         platforms_page = PlatformsPage(self._settings_manager)
         platforms_page.settings_changed.connect(self._on_settings_changed)
-        self._pages["platforms"] = platforms_page
-        self._page_stack.addWidget(platforms_page)
+        self._register_page("platforms", platforms_page)
 
         # Platform-specific categories
         platforms = platform_registry.get_all_platforms()
@@ -131,15 +149,13 @@ class SettingsDialog(QDialog):
 
             platform_page = PlatformSpecificPage(platform.platform_id, platform.name)
             platform_page.settings_changed.connect(self._on_settings_changed)
-            self._pages[platform_key] = platform_page
-            self._page_stack.addWidget(platform_page)
+            self._register_page(platform_key, platform_page)
 
     def _on_category_selected(self, item: QTreeWidgetItem, column: int) -> None:
         """Handle category selection."""
         page_id = item.data(0, 32)
-        if page_id in self._pages:
-            page = self._pages[page_id]
-            self._page_stack.setCurrentWidget(page)
+        if page_id in self._page_containers:
+            self._page_stack.setCurrentWidget(self._page_containers[page_id])
 
     def _on_settings_changed(self) -> None:
         """Handle settings changes from any page."""

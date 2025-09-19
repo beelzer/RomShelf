@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from PySide6.QtWidgets import QWidget
+
 from ..themes import get_theme_manager
 
 
@@ -72,3 +74,39 @@ class ThemeHelper:
     def auto_size_button(button) -> None:
         """Automatically size a button based on its text content."""
         ThemeHelper.configure_button_sizing(button)
+
+    @staticmethod
+    def apply_compact_form_style(widget: QWidget) -> None:
+        """Mark a widget tree to use the compact form variant and refresh styles."""
+        if widget is None:
+            return
+        widget.setProperty("formVariant", "compact")
+        if not widget.objectName():
+            widget.setObjectName("settingsPage")
+        ThemeHelper._repolish_widget_tree(widget)
+
+    @staticmethod
+    def _repolish_widget_tree(widget: QWidget) -> None:
+        """Force Qt to re-evaluate styles for a widget subtree."""
+        if widget is None:
+            return
+        style = widget.style()
+        if style is None:
+            return
+        style.unpolish(widget)
+        style.polish(widget)
+        ThemeHelper._safe_update(widget)
+        for child in widget.findChildren(QWidget):
+            style.unpolish(child)
+            style.polish(child)
+            ThemeHelper._safe_update(child)
+
+    @staticmethod
+    def _safe_update(widget: QWidget) -> None:
+        """Update a widget defensively to support views with special signatures."""
+        if widget is None:
+            return
+        try:
+            widget.update()
+        except TypeError:
+            widget.repaint()

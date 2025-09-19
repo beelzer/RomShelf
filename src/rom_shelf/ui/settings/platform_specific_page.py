@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -30,6 +31,7 @@ from ...core.settings import Settings
 from ...platforms.core.base_platform import PlatformSetting, SettingType
 from ...platforms.core.platform_registry import PlatformRegistry, platform_registry
 from ..themes.themed_widget import ThemeHelper
+from ..widgets.flow_layout import FlowLayout
 from .settings_base import SettingsPage, normalize_path_display
 
 
@@ -47,6 +49,8 @@ class PlatformSpecificPage(SettingsPage):
     def _setup_ui(self) -> None:
         """Set up the platform-specific settings UI dynamically."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Header
@@ -87,6 +91,8 @@ class PlatformSpecificPage(SettingsPage):
         if format_settings:
             formats_group = QGroupBox("Format Support")
             formats_layout = QVBoxLayout(formats_group)
+            formats_layout.setContentsMargins(12, 8, 12, 8)
+            formats_layout.setSpacing(6)
 
             for setting in format_settings:
                 setting_widget = self._create_setting_section(setting)
@@ -127,7 +133,11 @@ class PlatformSpecificPage(SettingsPage):
         label = QLabel(setting.label)
         label.setMinimumWidth(180)
         label.setMaximumWidth(180)
-        label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        # Top-align the label for multi-line controls like FORMAT_LIST
+        if setting.setting_type == SettingType.FORMAT_LIST:
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        else:
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         # Add description as tooltip
         if setting.description:
@@ -144,8 +154,9 @@ class PlatformSpecificPage(SettingsPage):
                 widget.setToolTip(setting.description)
             layout.addWidget(widget)
 
-        # Add stretch to fill remaining space
-        layout.addStretch()
+        # Add stretch to fill remaining space - but not for FORMAT_LIST which needs all available width
+        if setting.setting_type != SettingType.FORMAT_LIST:
+            layout.addStretch()
 
         return section
 
@@ -166,6 +177,11 @@ class PlatformSpecificPage(SettingsPage):
                 spinbox.setMaximum(int(setting.max_value))
             spinbox.setValue(setting.default_value)
             spinbox.valueChanged.connect(lambda: self.settings_changed.emit())
+
+            # Set reasonable width constraints for better layout
+            spinbox.setMinimumWidth(80)
+            spinbox.setMaximumWidth(150)
+
             return spinbox
 
         elif setting.setting_type == SettingType.FLOAT:
@@ -176,6 +192,11 @@ class PlatformSpecificPage(SettingsPage):
                 spinbox.setMaximum(float(setting.max_value))
             spinbox.setValue(float(setting.default_value))
             spinbox.valueChanged.connect(lambda: self.settings_changed.emit())
+
+            # Set reasonable width constraints for better layout
+            spinbox.setMinimumWidth(80)
+            spinbox.setMaximumWidth(150)
+
             return spinbox
 
         elif setting.setting_type == SettingType.STRING:
@@ -283,9 +304,13 @@ class PlatformSpecificPage(SettingsPage):
 
         elif setting.setting_type == SettingType.FORMAT_LIST:
             widget = QWidget()
-            layout = QHBoxLayout(widget)
+            # Use smaller spacing to fit more items per row
+            layout = FlowLayout(widget, 0, 8)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(8)
+
+            # Don't set a fixed minimum width - let it shrink to fit available space
+            # Enable responsive resizing - expand horizontally, adapt height to content
+            widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
             # Create checkboxes for each format option
             checkboxes = {}
@@ -294,6 +319,9 @@ class PlatformSpecificPage(SettingsPage):
                     checkbox = QCheckBox(format_ext.upper())
                     checkbox.setChecked(format_ext in setting.default_value)
                     checkbox.toggled.connect(lambda: self.settings_changed.emit())
+                    # Don't set a minimum width - let checkbox size itself based on text
+                    # Allow checkboxes to be compact
+                    checkbox.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
                     layout.addWidget(checkbox)
                     checkboxes[format_ext] = checkbox
 

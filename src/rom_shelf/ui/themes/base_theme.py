@@ -514,7 +514,126 @@ QSpinBox:focus, QDoubleSpinBox:focus {{
     border-color: {self.colors.input_border_focus};
     outline: 2px solid {self.colors.focus_ring};
     outline-offset: -2px;
-}}"""
+}}
+
+/* QSpinBox button styling */
+QSpinBox::up-button, QDoubleSpinBox::up-button {{
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 20px;
+    height: 14px;
+    background-color: {self.colors.input_bg};
+    border-left: 1px solid {self.colors.border};
+    border-bottom: 1px solid {self.colors.border};
+    border-top-right-radius: 6px;
+}}
+
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {{
+    background-color: {self.colors.hover};
+}}
+
+QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed {{
+    background-color: {self.colors.pressed};
+}}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 20px;
+    height: 14px;
+    background-color: {self.colors.input_bg};
+    border-left: 1px solid {self.colors.border};
+    border-top: 1px solid {self.colors.border};
+    border-bottom-right-radius: 6px;
+}}
+
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+    background-color: {self.colors.hover};
+}}
+
+QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
+    background-color: {self.colors.pressed};
+}}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
+    width: 10px;
+    height: 10px;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-bottom: 4px solid {self.colors.text};
+    border-top: none;
+}}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+    width: 10px;
+    height: 10px;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 4px solid {self.colors.text};
+    border-bottom: none;
+}}
+
+QWidget[formVariant="compact"] QLineEdit {{
+    padding: 2px 6px;
+    min-height: 26px;
+    border: 1px solid {self.colors.input_border};
+    border-radius: 4px;
+}}
+
+QWidget[formVariant="compact"] QLineEdit:focus {{
+    outline-offset: -2px;
+    border-color: {self.colors.input_border_focus};
+    border-width: 1px;
+}}
+
+QWidget[formVariant="compact"] QAbstractSpinBox {{
+    padding: 1px 4px;
+    min-height: 26px;
+    border: 1px solid {self.colors.input_border};
+    border-radius: 4px;
+}}
+
+QWidget[formVariant="compact"] QAbstractSpinBox:focus {{
+    outline-offset: -2px;
+    border-color: {self.colors.input_border_focus};
+}}
+
+QWidget[formVariant="compact"] QComboBox {{
+    padding: 1px 24px 1px 6px;
+    min-height: 28px;
+    border: 1px solid {self.colors.input_border};
+    border-radius: 4px;
+}}
+
+QWidget[formVariant="compact"] QComboBox:focus {{
+    outline-offset: -1px;
+    border-color: {self.colors.input_border_focus};
+}}
+
+QWidget[formVariant="compact"] QComboBox::drop-down {{
+    width: 20px;
+    border-left: 1px solid {self.colors.border};
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}}
+
+QWidget[formVariant="compact"] QCheckBox {{
+    spacing: 4px;
+    margin: 2px 8px 2px 0px;
+}}
+
+QWidget[formVariant="compact"] QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border-width: 1px;
+}}
+
+QWidget[formVariant="compact"] QGroupBox {{
+    margin-top: 8px;
+    padding-top: 10px;
+}}
+"""
 
     def get_scrollbar_stylesheet(self) -> str:
         """Get stylesheet for scrollbars and splitters."""
