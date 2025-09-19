@@ -3,12 +3,13 @@
 import logging
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QDockWidget,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QStyle,
     QTextEdit,
@@ -37,245 +38,249 @@ class ScanProgressDock(QDockWidget):
         self._detail_messages: list[tuple[str, str, str]] = []
         self._max_detail_messages = 1000
         self._is_expanded = True
+        self._current_operation = "Idle"
 
-        # UI elements initialised in _setup_ui
+        # UI elements
+        self._main_container: QWidget | None = None
+        self._status_icon: QLabel | None = None
+        self._operation_label: QLabel | None = None
+        self._progress_bar: QProgressBar | None = None
+        self._stats_container: QWidget | None = None
         self._toggle_button: QPushButton | None = None
-        self._content_frame: QFrame | None = None
-        self._changes_label: QLabel | None = None
-        self._progress_section_label: QLabel | None = None
-        self._log_section_label: QLabel | None = None
-        self._new_roms_label: QLabel | None = None
-        self._modified_roms_label: QLabel | None = None
-        self._removed_roms_label: QLabel | None = None
-        self._existing_roms_label: QLabel | None = None
-        self._files_label: QLabel | None = None
-        self._roms_label: QLabel | None = None
-        self._ra_label: QLabel | None = None
+        self._cancel_button: QPushButton | None = None
+        self._detail_panel: QWidget | None = None
         self._detail_text: QTextEdit | None = None
-        self._layout_margins = None
-        self._expanded_min_height = 180
-        self._expanded_max_height = 400
+
+        # Statistics labels
+        self._total_label: QLabel | None = None
+        self._new_label: QLabel | None = None
+        self._modified_label: QLabel | None = None
+        self._removed_label: QLabel | None = None
+        self._rate_label: QLabel | None = None
 
         self._setup_ui()
+
+        # Animation timer for pulsing effect during scan
+        self._pulse_timer = QTimer()
+        self._pulse_timer.timeout.connect(self._pulse_animation)
 
         # Start hidden until scan begins
         self.hide()
 
     def _setup_ui(self) -> None:
-        """Set up the user interface."""
+        """Set up the user interface with a modern design."""
         main_widget = QWidget()
         self.setWidget(main_widget)
 
-        layout = QVBoxLayout(main_widget)
-        layout.setContentsMargins(12, 4, 12, 8)
-        layout.setSpacing(6)
-        self._layout_margins = layout.contentsMargins()
-
-        # Create the main horizontal layout that stays visible
-        main_layout = QHBoxLayout()
+        # Main vertical layout with minimal padding
+        main_layout = QVBoxLayout(main_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(0)
 
-        # Left side with toggle button that always stays visible
-        left_container = QWidget()
-        left_container.setMaximumWidth(250)
-        left_container_layout = QVBoxLayout(left_container)
-        left_container_layout.setContentsMargins(0, 0, 0, 0)
-        left_container_layout.setSpacing(4)
+        # Create the main container with border
+        self._main_container = QFrame()
+        self._main_container.setObjectName("scanProgressContainer")
+        container_layout = QVBoxLayout(self._main_container)
+        container_layout.setContentsMargins(16, 12, 16, 12)
+        container_layout.setSpacing(12)
 
-        # Add toggle button at the top of the left column
-        button_row = QHBoxLayout()
-        button_row.setContentsMargins(0, 0, 0, 0)
+        # Top section: Status bar with progress
+        status_bar = self._create_status_bar()
+        container_layout.addWidget(status_bar)
 
+        # Middle section: Statistics strip
+        self._stats_container = self._create_stats_strip()
+        container_layout.addWidget(self._stats_container)
+
+        # Bottom section: Collapsible detail panel
+        self._detail_panel = self._create_detail_panel()
+        container_layout.addWidget(self._detail_panel)
+
+        main_layout.addWidget(self._main_container)
+
+        # Set initial size
+        self.setMinimumHeight(120)
+        self.setMaximumHeight(400)
+
+        self._apply_theme()
+
+    def _create_status_bar(self) -> QWidget:
+        """Create the main status bar with operation info and progress."""
+        status_widget = QWidget()
+        status_widget.setObjectName("statusBar")
+        layout = QHBoxLayout(status_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # Left: Status icon and operation text
+        status_container = QHBoxLayout()
+        status_container.setSpacing(8)
+
+        # Animated status icon
+        self._status_icon = QLabel("⚡")
+        self._status_icon.setObjectName("statusIcon")
+        self._status_icon.setFixedSize(24, 24)
+        self._status_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_container.addWidget(self._status_icon)
+
+        # Operation label
+        self._operation_label = QLabel("Ready to scan")
+        self._operation_label.setObjectName("operationLabel")
+        status_container.addWidget(self._operation_label)
+
+        layout.addLayout(status_container)
+
+        # Center: Progress bar
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setObjectName("scanProgressBar")
+        self._progress_bar.setMinimum(0)
+        self._progress_bar.setMaximum(100)
+        self._progress_bar.setValue(0)
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setFixedHeight(20)
+        layout.addWidget(self._progress_bar, 1)
+
+        # Right: Action buttons
+        button_container = QHBoxLayout()
+        button_container.setSpacing(8)
+
+        # Toggle details button
         self._toggle_button = QPushButton()
-        self._toggle_button.setFlat(True)
-        self._toggle_button.setFixedSize(24, 24)
+        self._toggle_button.setObjectName("toggleButton")
+        self._toggle_button.setFixedSize(32, 32)
         self._toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._toggle_button.clicked.connect(self._toggle_expanded)
-        button_row.addWidget(self._toggle_button)
+        self._toggle_button.setToolTip("Show/Hide Details")
+        button_container.addWidget(self._toggle_button)
 
-        button_label = QLabel("Scan Details")
-        button_row.addWidget(button_label)
-        button_row.addStretch()
+        # Cancel button
+        self._cancel_button = QPushButton()
+        self._cancel_button.setObjectName("cancelButton")
+        self._cancel_button.setFixedSize(32, 32)
+        self._cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._cancel_button.setToolTip("Cancel Scan")
+        self._cancel_button.setVisible(False)  # Hidden until scan starts
+        button_container.addWidget(self._cancel_button)
 
-        left_container_layout.addLayout(button_row)
+        layout.addLayout(button_container)
 
-        # Collapsible content frame for left statistics
-        self._left_content_frame = QFrame()
-        self._left_content_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        left_content_layout = QVBoxLayout(self._left_content_frame)
-        left_content_layout.setContentsMargins(0, 8, 0, 0)
-        left_content_layout.setSpacing(4)
+        return status_widget
 
-        self._changes_label = QLabel("Changes:")
-        left_content_layout.addWidget(self._changes_label)
+    def _create_stats_strip(self) -> QWidget:
+        """Create the statistics strip showing scan results."""
+        stats_widget = QWidget()
+        stats_widget.setObjectName("statsStrip")
+        layout = QHBoxLayout(stats_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(24)
 
-        self._new_roms_label = QLabel("New: 0")
-        left_content_layout.addWidget(self._new_roms_label)
+        # Create stat items
+        stats = [
+            ("Total", self._create_stat_item("Total", "0", "totalStat")),
+            ("New", self._create_stat_item("New", "0", "newStat")),
+            ("Modified", self._create_stat_item("Modified", "0", "modifiedStat")),
+            ("Removed", self._create_stat_item("Removed", "0", "removedStat")),
+            ("Rate", self._create_stat_item("Rate", "0/s", "rateStat")),
+        ]
 
-        self._modified_roms_label = QLabel("Modified: 0")
-        left_content_layout.addWidget(self._modified_roms_label)
+        for label, widget in stats:
+            layout.addWidget(widget)
+            if label == "Total":
+                self._total_label = widget.findChild(QLabel, "value")
+            elif label == "New":
+                self._new_label = widget.findChild(QLabel, "value")
+            elif label == "Modified":
+                self._modified_label = widget.findChild(QLabel, "value")
+            elif label == "Removed":
+                self._removed_label = widget.findChild(QLabel, "value")
+            elif label == "Rate":
+                self._rate_label = widget.findChild(QLabel, "value")
 
-        self._removed_roms_label = QLabel("Removed: 0")
-        left_content_layout.addWidget(self._removed_roms_label)
+        layout.addStretch()
 
-        self._existing_roms_label = QLabel("Existing: 0")
-        left_content_layout.addWidget(self._existing_roms_label)
+        return stats_widget
 
-        left_content_layout.addSpacing(20)
+    def _create_stat_item(self, label: str, value: str, object_name: str) -> QWidget:
+        """Create a single statistics item."""
+        item = QWidget()
+        item.setObjectName(object_name)
+        layout = QVBoxLayout(item)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
 
-        self._progress_section_label = QLabel("Progress:")
-        left_content_layout.addWidget(self._progress_section_label)
+        # Label
+        label_widget = QLabel(label)
+        label_widget.setObjectName("label")
+        label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(label_widget)
 
-        self._files_label = QLabel("Files checked: 0/0")
-        left_content_layout.addWidget(self._files_label)
+        # Value
+        value_widget = QLabel(value)
+        value_widget.setObjectName("value")
+        value_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(value_widget)
 
-        self._roms_label = QLabel("ROMs validated: 0")
-        left_content_layout.addWidget(self._roms_label)
+        return item
 
-        self._ra_label = QLabel("RA matches: 0")
-        left_content_layout.addWidget(self._ra_label)
+    def _create_detail_panel(self) -> QWidget:
+        """Create the collapsible detail panel."""
+        panel = QWidget()
+        panel.setObjectName("detailPanel")
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
-        left_content_layout.addStretch()
+        # Section header
+        header = QLabel("Activity Log")
+        header.setObjectName("detailHeader")
+        layout.addWidget(header)
 
-        # Add the collapsible content to the left container
-        left_container_layout.addWidget(self._left_content_frame)
-
-        # Right panel - Detailed log
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(8, 0, 0, 0)
-        right_layout.setSpacing(6)
-
-        self._log_section_label = QLabel("Scan Log:")
-        right_layout.addWidget(self._log_section_label)
-
-        # Collapsible content frame for right panel
-        self._right_content_frame = QFrame()
-        self._right_content_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        right_content_layout = QVBoxLayout(self._right_content_frame)
-        right_content_layout.setContentsMargins(0, 0, 0, 0)
-        right_content_layout.setSpacing(0)
-
+        # Log text area
         self._detail_text = QTextEdit()
+        self._detail_text.setObjectName("detailText")
         self._detail_text.setReadOnly(True)
-        self._detail_text.setViewportMargins(0, 0, 0, 0)
-        self._detail_text.document().setDocumentMargin(8)
-        right_content_layout.addWidget(self._detail_text)
+        self._detail_text.setMinimumHeight(100)
+        self._detail_text.setMaximumHeight(200)
+        layout.addWidget(self._detail_text)
 
-        right_layout.addWidget(self._right_content_frame)
+        return panel
 
-        # Add panels to main layout
-        main_layout.addWidget(left_container)
-        main_layout.addWidget(right_panel, 1)
+    def _pulse_animation(self) -> None:
+        """Create a pulsing animation for the status icon during scanning."""
+        if self._status_icon:
+            # Simple rotation of different status characters
+            current = self._status_icon.text()
+            icons = ["⚡", "⚙️", "🔄", "📊"]
+            try:
+                idx = icons.index(current)
+                self._status_icon.setText(icons[(idx + 1) % len(icons)])
+            except ValueError:
+                self._status_icon.setText(icons[0])
 
-        # Add the main layout to the dock
-        layout.addLayout(main_layout)
+    def _toggle_expanded(self) -> None:
+        """Toggle the expanded state of the detail panel."""
+        self.set_expanded(not self._is_expanded)
 
-        # Store content frame reference for compatibility
-        self._content_frame = self._left_content_frame
+    def set_expanded(self, expanded: bool) -> None:
+        """Expand or collapse the detail panel."""
+        if not self._detail_panel:
+            return
 
-        content_hint = (
-            self._left_content_frame.sizeHint().height() if self._left_content_frame else 0
-        )
-        top_margin = self._layout_margins.top() if self._layout_margins else 0
-        bottom_margin = self._layout_margins.bottom() if self._layout_margins else 0
-        self._expanded_min_height = max(180, content_hint + top_margin + bottom_margin)
-        self._expanded_max_height = max(self._expanded_max_height, self._expanded_min_height + 200)
-        self.setMinimumHeight(self._expanded_min_height)
-        self.setMaximumHeight(self._expanded_max_height)
-        self._update_toggle_button_icon()
-        self._apply_theme()
+        self._is_expanded = expanded
 
-    def apply_theme(self) -> None:
-        """Public hook to refresh theme styling."""
-        self._apply_theme()
-
-    def _apply_theme(self) -> None:
-        theme = get_theme_manager().get_current_theme()
-
-        if theme:
-            colors = theme.colors
-            text_color = colors.text
-            secondary_text = colors.text_secondary
-            surface_color = colors.surface
-            border_color = colors.border
-            success_color = colors.success
-            warning_color = colors.warning
-            error_color = colors.error
-            info_color = colors.info
-            hover_color = colors.hover
+        if expanded:
+            self._detail_panel.show()
+            self.setMinimumHeight(250)
+            self.setMaximumHeight(400)
         else:
-            # Fallback palette for when no theme is active
-            text_color = "#e0e0e0"
-            secondary_text = "#b0b0b0"
-            surface_color = "#2b2b2b"
-            border_color = "rgba(255, 255, 255, 0.1)"
-            success_color = "#4CAF50"
-            warning_color = "#FFA726"
-            error_color = "#EF5350"
-            info_color = "#ffffff"
-            hover_color = "rgba(255, 255, 255, 0.08)"
+            self._detail_panel.hide()
+            self.setMinimumHeight(120)
+            self.setMaximumHeight(120)
 
-        if self._changes_label:
-            self._changes_label.setStyleSheet(f"font-weight: bold; color: {text_color};")
-        if self._progress_section_label:
-            self._progress_section_label.setStyleSheet(f"font-weight: bold; color: {text_color};")
-        if self._log_section_label:
-            self._log_section_label.setStyleSheet(f"font-weight: bold; color: {text_color};")
+        self._update_toggle_button()
 
-        if self._new_roms_label:
-            self._new_roms_label.setStyleSheet(f"color: {success_color}; padding-left: 10px;")
-        if self._modified_roms_label:
-            self._modified_roms_label.setStyleSheet(f"color: {warning_color}; padding-left: 10px;")
-        if self._removed_roms_label:
-            self._removed_roms_label.setStyleSheet(f"color: {error_color}; padding-left: 10px;")
-        if self._existing_roms_label:
-            self._existing_roms_label.setStyleSheet(f"color: {secondary_text}; padding-left: 10px;")
-
-        if self._files_label:
-            self._files_label.setStyleSheet(f"color: {secondary_text}; padding-left: 10px;")
-        if self._roms_label:
-            self._roms_label.setStyleSheet(f"color: {secondary_text}; padding-left: 10px;")
-        if self._ra_label:
-            self._ra_label.setStyleSheet(f"color: {secondary_text}; padding-left: 10px;")
-
-        if self._toggle_button:
-            self._toggle_button.setStyleSheet(
-                f"""
-                QPushButton {{
-                    border: 1px solid {border_color};
-                    border-radius: 4px;
-                    background-color: transparent;
-                    padding: 2px;
-                }}
-                QPushButton:hover {{
-                    background-color: {hover_color};
-                }}
-                """
-            )
-
-        if self._detail_text:
-            self._detail_text.setStyleSheet(
-                f"""
-                QTextEdit {{
-                    background-color: {surface_color};
-                    color: {text_color};
-                    border: 1px solid {border_color};
-                    border-radius: 6px;
-                    padding: 0;
-                    font-family: inherit;
-                    font-size: inherit;
-                }}
-                """
-            )
-
-        self._update_toggle_button_icon()
-        self._refresh_detail_text(
-            info_color, success_color, warning_color, error_color, secondary_text
-        )
-
-    def _update_toggle_button_icon(self) -> None:
+    def _update_toggle_button(self) -> None:
+        """Update the toggle button icon based on expanded state."""
         if not self._toggle_button:
             return
 
@@ -288,109 +293,102 @@ class ScanProgressDock(QDockWidget):
             )
             self._toggle_button.setIcon(icon)
 
-        tooltip = "Collapse details" if self._is_expanded else "Expand details"
-        self._toggle_button.setToolTip(tooltip)
+    def start_scan(self, scan_type: str = "ROMs") -> None:
+        """Start showing scan progress."""
+        self.show()
+        self.clear()
 
-    def _toggle_expanded(self) -> None:
-        self.set_expanded(not self._is_expanded)
+        self._current_operation = f"Scanning {scan_type}..."
+        if self._operation_label:
+            self._operation_label.setText(self._current_operation)
 
-    def set_expanded(self, expanded: bool) -> None:
-        """Expand or collapse the dock content."""
-        if not self._left_content_frame or not self._right_content_frame:
-            self._is_expanded = expanded
-            self._update_toggle_button_icon()
-            return
+        if self._progress_bar:
+            self._progress_bar.setMaximum(0)  # Indeterminate progress
 
-        if expanded:
-            self._left_content_frame.show()
-            self._right_content_frame.show()
-            self.setMinimumHeight(self._expanded_min_height)
-            self.setMaximumHeight(self._expanded_max_height)
-        else:
-            self._left_content_frame.hide()
-            self._right_content_frame.hide()
-            # When collapsed, keep button visible
-            margins = self._layout_margins
-            top_margin = margins.top() if margins else 0
-            bottom_margin = margins.bottom() if margins else 0
-            button_height = self._toggle_button.sizeHint().height() if self._toggle_button else 24
-            label_height = (
-                self._log_section_label.sizeHint().height() if self._log_section_label else 16
-            )
-            collapsed_height = top_margin + bottom_margin + max(button_height, label_height) + 8
-            self.setMinimumHeight(collapsed_height)
-            self.setMaximumHeight(collapsed_height)
+        if self._cancel_button:
+            self._cancel_button.setVisible(True)
 
-        self._is_expanded = expanded
-        self._update_toggle_button_icon()
-        self.updateGeometry()
+        # Start pulsing animation
+        self._pulse_timer.start(500)
 
-    def _refresh_detail_text(
-        self,
-        info_color: str,
-        success_color: str,
-        warning_color: str,
-        error_color: str,
-        timestamp_color: str,
-    ) -> None:
-        if not self._detail_text:
-            return
+        self.add_detail_message(f"Started {scan_type} scan", "info")
 
-        color_map = {
-            "info": info_color,
-            "success": success_color,
-            "warning": warning_color,
-            "error": error_color,
-        }
+    def stop_scan(self) -> None:
+        """Stop showing scan progress."""
+        self._pulse_timer.stop()
 
-        html_lines = []
-        for timestamp, message, message_type in self._detail_messages:
-            color = color_map.get(message_type.lower(), info_color)
-            html_lines.append(
-                f'<span style="color: {timestamp_color}">[{timestamp}]</span> '
-                f'<span style="color: {color}">{message}</span>'
-            )
+        if self._status_icon:
+            self._status_icon.setText("✅")
 
-        self._detail_text.setHtml("<br>".join(html_lines))
-        scrollbar = self._detail_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        if self._operation_label:
+            self._operation_label.setText("Scan complete")
+
+        if self._progress_bar:
+            self._progress_bar.setMaximum(100)
+            self._progress_bar.setValue(100)
+
+        if self._cancel_button:
+            self._cancel_button.setVisible(False)
+
+        self.add_detail_message("Scan completed successfully", "success")
 
     def clear(self) -> None:
         """Clear all progress information."""
         self._detail_messages.clear()
+
         if self._detail_text:
             self._detail_text.clear()
+
+        if self._progress_bar:
+            self._progress_bar.setValue(0)
+            self._progress_bar.setMaximum(100)
+
+        if self._operation_label:
+            self._operation_label.setText("Ready to scan")
+
+        if self._status_icon:
+            self._status_icon.setText("⚡")
+
         self.update_scan_changes(0, 0, 0, 0)
         self.update_file_progress(0, 0)
-        self.update_rom_count(0)
-        self.update_ra_matches(0)
+
         self.set_expanded(True)
 
     def update_scan_changes(self, new=None, modified=None, removed=None, existing=None) -> None:
         """Update scan change statistics."""
-        if self._new_roms_label and new is not None:
-            self._new_roms_label.setText(f"New: {new}")
-        if self._modified_roms_label and modified is not None:
-            self._modified_roms_label.setText(f"Modified: {modified}")
-        if self._removed_roms_label and removed is not None:
-            self._removed_roms_label.setText(f"Removed: {removed}")
-        if self._existing_roms_label and existing is not None:
-            self._existing_roms_label.setText(f"Existing: {existing}")
+        if self._new_label and new is not None:
+            self._new_label.setText(str(new))
+
+        if self._modified_label and modified is not None:
+            self._modified_label.setText(str(modified))
+
+        if self._removed_label and removed is not None:
+            self._removed_label.setText(str(removed))
+
+        if self._total_label and all(x is not None for x in [new, modified, existing]):
+            total = (new or 0) + (modified or 0) + (existing or 0)
+            self._total_label.setText(str(total))
 
     def update_file_progress(self, current, total) -> None:
         """Update file processing progress."""
-        if self._files_label:
-            self._files_label.setText(f"Files checked: {current}/{total}")
+        if self._progress_bar and total > 0:
+            self._progress_bar.setMaximum(total)
+            self._progress_bar.setValue(current)
+            percentage = (current / total) * 100
+            self._progress_bar.setFormat(f"{current}/{total} ({percentage:.0f}%)")
+
+        if self._operation_label:
+            self._operation_label.setText(f"Processing: {current}/{total} files")
 
     def update_rom_count(self, count) -> None:
         """Update the number of ROMs found."""
-        if self._roms_label:
-            self._roms_label.setText(f"ROMs validated: {count}")
+        pass  # Integrated into total count
 
     def update_ra_matches(self, count) -> None:
         """Update RetroAchievements match count."""
-        if self._ra_label:
-            self._ra_label.setText(f"RA matches: {count}")
+        # Could add to detail messages
+        if count > 0:
+            self.add_detail_message(f"Found {count} RetroAchievements matches", "success")
 
     def add_detail_message(self, message, message_type="info") -> None:
         """Add a detailed message to the log."""
@@ -400,25 +398,256 @@ class ScanProgressDock(QDockWidget):
         if len(self._detail_messages) > self._max_detail_messages:
             self._detail_messages = self._detail_messages[-self._max_detail_messages :]
 
+        self._refresh_detail_text()
+
+    def _refresh_detail_text(self) -> None:
+        """Refresh the detail text display."""
+        if not self._detail_text:
+            return
+
         theme = get_theme_manager().get_current_theme()
         if theme:
             colors = theme.colors
-            self._refresh_detail_text(
-                colors.info,
-                colors.success,
-                colors.warning,
-                colors.error,
-                colors.text_secondary,
-            )
+            color_map = {
+                "info": colors.info,
+                "success": colors.success,
+                "warning": colors.warning,
+                "error": colors.error,
+            }
+            timestamp_color = colors.text_secondary
         else:
-            self._refresh_detail_text(
-                "#ffffff",
-                "#4CAF50",
-                "#FFA726",
-                "#EF5350",
-                "#888888",
+            color_map = {
+                "info": "#ffffff",
+                "success": "#4CAF50",
+                "warning": "#FFA726",
+                "error": "#EF5350",
+            }
+            timestamp_color = "#888888"
+
+        html_lines = []
+        for timestamp, message, message_type in self._detail_messages:
+            color = color_map.get(message_type.lower(), "#ffffff")
+            html_lines.append(
+                f'<span style="color: {timestamp_color}">[{timestamp}]</span> '
+                f'<span style="color: {color}">{message}</span>'
             )
+
+        self._detail_text.setHtml("<br>".join(html_lines))
+        scrollbar = self._detail_text.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def set_completed(self) -> None:
         """Mark the scan as completed."""
-        self.add_detail_message("Scan completed", "success")
+        self.stop_scan()
+
+    def apply_theme(self) -> None:
+        """Public hook to refresh theme styling."""
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        """Apply the current theme to all UI elements."""
+        theme = get_theme_manager().get_current_theme()
+
+        if theme:
+            colors = theme.colors
+            text_color = colors.text
+            secondary_text = colors.text_secondary
+            surface_color = colors.surface
+            border_color = colors.border
+            success_color = colors.success
+            warning_color = colors.warning
+            error_color = colors.error
+            primary_color = colors.primary
+            hover_color = colors.hover
+        else:
+            text_color = "#e0e0e0"
+            secondary_text = "#b0b0b0"
+            surface_color = "#2b2b2b"
+            border_color = "rgba(255, 255, 255, 0.1)"
+            success_color = "#4CAF50"
+            warning_color = "#FFA726"
+            error_color = "#EF5350"
+            primary_color = "#2196F3"
+            hover_color = "rgba(255, 255, 255, 0.08)"
+
+        # Main container with subtle border
+        if self._main_container:
+            self._main_container.setStyleSheet(f"""
+                #scanProgressContainer {{
+                    background-color: {surface_color};
+                    border-top: 2px solid {border_color};
+                }}
+            """)
+
+        # Status bar styling
+        if self._status_icon:
+            self._status_icon.setStyleSheet(f"""
+                #statusIcon {{
+                    background-color: {primary_color};
+                    border-radius: 12px;
+                    color: white;
+                    font-size: 14px;
+                }}
+            """)
+
+        if self._operation_label:
+            self._operation_label.setStyleSheet(f"""
+                #operationLabel {{
+                    color: {text_color};
+                    font-weight: 600;
+                    font-size: 13px;
+                }}
+            """)
+
+        # Modern progress bar
+        if self._progress_bar:
+            self._progress_bar.setStyleSheet(f"""
+                #scanProgressBar {{
+                    border: none;
+                    border-radius: 10px;
+                    background-color: rgba(255, 255, 255, 0.05);
+                    text-align: center;
+                    color: {text_color};
+                    font-size: 11px;
+                }}
+                #scanProgressBar::chunk {{
+                    border-radius: 10px;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 {primary_color},
+                        stop:1 {success_color});
+                }}
+            """)
+
+        # Action buttons
+        button_style = f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 1px solid {border_color};
+                border-radius: 16px;
+                padding: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover_color};
+                border-color: {primary_color};
+            }}
+        """
+
+        if self._toggle_button:
+            self._toggle_button.setStyleSheet(button_style)
+
+        if self._cancel_button:
+            self._cancel_button.setStyleSheet(button_style)
+            # Set cancel icon
+            style = self.style()
+            if style:
+                self._cancel_button.setIcon(
+                    style.standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton)
+                )
+
+        # Statistics styling
+        if self._stats_container:
+            # Style each stat item
+            stat_items = self._stats_container.findChildren(QWidget)
+            for item in stat_items:
+                name = item.objectName()
+                if name == "totalStat":
+                    item.setStyleSheet(f"""
+                        #totalStat #label {{
+                            color: {secondary_text};
+                            font-size: 10px;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }}
+                        #totalStat #value {{
+                            color: {text_color};
+                            font-size: 18px;
+                            font-weight: bold;
+                        }}
+                    """)
+                elif name == "newStat":
+                    item.setStyleSheet(f"""
+                        #newStat #label {{
+                            color: {secondary_text};
+                            font-size: 10px;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }}
+                        #newStat #value {{
+                            color: {success_color};
+                            font-size: 18px;
+                            font-weight: bold;
+                        }}
+                    """)
+                elif name == "modifiedStat":
+                    item.setStyleSheet(f"""
+                        #modifiedStat #label {{
+                            color: {secondary_text};
+                            font-size: 10px;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }}
+                        #modifiedStat #value {{
+                            color: {warning_color};
+                            font-size: 18px;
+                            font-weight: bold;
+                        }}
+                    """)
+                elif name == "removedStat":
+                    item.setStyleSheet(f"""
+                        #removedStat #label {{
+                            color: {secondary_text};
+                            font-size: 10px;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }}
+                        #removedStat #value {{
+                            color: {error_color};
+                            font-size: 18px;
+                            font-weight: bold;
+                        }}
+                    """)
+                elif name == "rateStat":
+                    item.setStyleSheet(f"""
+                        #rateStat #label {{
+                            color: {secondary_text};
+                            font-size: 10px;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }}
+                        #rateStat #value {{
+                            color: {primary_color};
+                            font-size: 18px;
+                            font-weight: bold;
+                        }}
+                    """)
+
+        # Detail panel styling
+        if self._detail_panel:
+            header = self._detail_panel.findChild(QLabel, "detailHeader")
+            if header:
+                header.setStyleSheet(f"""
+                    #detailHeader {{
+                        color: {text_color};
+                        font-weight: 600;
+                        font-size: 12px;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        padding: 8px 0px 4px 0px;
+                        border-top: 1px solid {border_color};
+                    }}
+                """)
+
+        if self._detail_text:
+            self._detail_text.setStyleSheet(f"""
+                #detailText {{
+                    background-color: rgba(0, 0, 0, 0.2);
+                    color: {text_color};
+                    border: 1px solid {border_color};
+                    border-radius: 8px;
+                    padding: 8px;
+                    font-family: 'Consolas', 'Monaco', monospace;
+                    font-size: 11px;
+                }}
+            """)
+
+        self._update_toggle_button()

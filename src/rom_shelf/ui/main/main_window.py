@@ -99,7 +99,6 @@ class MainWindow(QMainWindow):
         self.addToolBar(search_toolbar)
 
         self._toolbar_manager.create_menu_bar(self._start_rom_scan, self._open_settings)
-        self._toolbar_manager.create_status_bar()
 
         # Create scan progress dock widget
         self._scan_dock = ScanProgressDock(self)
@@ -500,14 +499,8 @@ class MainWindow(QMainWindow):
                         "success",
                     )
 
-            # Set to 100% to show completion before hiding
-            self._toolbar_manager.update_progress(100)
-            self._current_progress_percentage = 100
-            self.logger.debug("Progress: Scan completed (100%)")
-
-            # Brief delay to show 100% before hiding
-            self._toolbar_manager.hide_progress_bar()
-            self._toolbar_manager.update_status(f"Scan completed. Found {len(all_entries)} ROMs.")
+            # Mark scan as completed in the dock
+            self._scan_dock.set_completed()
 
         # Clean up scanner thread properly
         if self._scanner_thread:
@@ -520,9 +513,9 @@ class MainWindow(QMainWindow):
         """Handle scan errors."""
         self.logger.error(f"Scan error: {error_msg}")
 
-        if self._toolbar_manager:
-            self._toolbar_manager.hide_progress_bar()
-            self._toolbar_manager.update_status(f"Scan error: {error_msg}")
+        if self._scan_dock:
+            self._scan_dock.add_detail_message(f"Scan error: {error_msg}", "error")
+            self._scan_dock.stop_scan()
 
         # Clean up scanner thread properly
         if self._scanner_thread:
