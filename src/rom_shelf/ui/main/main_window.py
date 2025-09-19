@@ -171,6 +171,11 @@ class MainWindow(QMainWindow):
             if self._toolbar_manager:
                 self._toolbar_manager.apply_font_settings(app_font)
 
+            # Apply font to scan dock if it exists
+            if hasattr(self, "_scan_dock") and self._scan_dock:
+                self._scan_dock.setFont(app_font)
+                self._scan_dock.apply_theme()
+
             # Table needs special handling
             if self._rom_table:
                 self._rom_table.setFont(app_font)

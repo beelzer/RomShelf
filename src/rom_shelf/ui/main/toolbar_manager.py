@@ -5,13 +5,14 @@ import logging
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMenuBar,
     QProgressBar,
-    QPushButton,
     QStatusBar,
     QToolBar,
+    QWidget,
 )
 
 
@@ -26,7 +27,6 @@ class ToolbarManager(QObject):
         self._status_bar: QStatusBar | None = None
         self._progress_bar: QProgressBar | None = None
         self._progress_label: QLabel | None = None
-        self._expand_button: QPushButton | None = None
         self._ra_match_count = 0
 
     def create_main_toolbar(self, refresh_callback, settings_callback) -> QToolBar:
@@ -86,45 +86,28 @@ class ToolbarManager(QObject):
         self._status_bar.setSizeGripEnabled(False)
         self._main_window.setStatusBar(self._status_bar)
 
-        # Create compact progress bar for status bar
+        right_container = QWidget()
+        right_layout = QHBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 12, 0)  # Align with table on the right
+        right_layout.setSpacing(8)
+
+        self._progress_label = QLabel("")
+        self._progress_label.setVisible(False)
+        right_layout.addWidget(self._progress_label)
+
         self._progress_bar = QProgressBar()
         self._progress_bar.setMinimum(0)
         self._progress_bar.setMaximum(100)
         self._progress_bar.setValue(0)
         self._progress_bar.setVisible(False)
-        self._progress_bar.setFixedSize(180, 20)
+        self._progress_bar.setFixedSize(180, 18)
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setFormat("%p%")
+        right_layout.addWidget(self._progress_bar)
 
-        # Progress label
-        self._progress_label = QLabel("")
-        self._progress_label.setVisible(False)
-
-        # Button to show/hide scan details dock
-        self._expand_button = QPushButton("Show Details")
-        self._expand_button.setFixedHeight(20)
-        self._expand_button.setVisible(False)
-        self._expand_button.clicked.connect(self._toggle_scan_dock)
-
-        # Add widgets to status bar
-        self._status_bar.addPermanentWidget(self._progress_label)
-        self._status_bar.addPermanentWidget(self._progress_bar)
-        self._status_bar.addPermanentWidget(self._expand_button)
-
-        # Default status message
+        self._status_bar.addPermanentWidget(right_container)
         self._status_bar.showMessage("Ready")
         return self._status_bar
-
-    def _toggle_scan_dock(self):
-        """Toggle the scan progress dock visibility."""
-        if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
-            dock = self._main_window._scan_dock
-            if dock.isVisible():
-                dock.hide()
-                self._expand_button.setText("Show Details")
-            else:
-                dock.show()
-                self._expand_button.setText("Hide Details")
 
     def update_status(self, message: str) -> None:
         """Update the status bar message."""
@@ -145,32 +128,26 @@ class ToolbarManager(QObject):
 
     def show_progress_bar(self) -> None:
         """Show the progress bar in the status bar."""
-        # Show progress components
         if self._progress_bar:
             self._progress_bar.setValue(0)
             self._progress_bar.setVisible(True)
         if self._progress_label:
             self._progress_label.setText("Scanning...")
             self._progress_label.setVisible(True)
-        if self._expand_button:
-            self._expand_button.setVisible(True)
 
-        # Show and clear dock if available
         if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
-            self._main_window._scan_dock.clear()
-            self._main_window._scan_dock.show()
-            self._expand_button.setText("Hide Details")
+            dock = self._main_window._scan_dock
+            dock.clear()
+            dock.set_expanded(True)
+            dock.show()
 
         self._ra_match_count = 0
 
     def hide_progress_bar(self) -> None:
         """Hide the progress bar in the status bar."""
-        # Mark scan as completed in dock
         if hasattr(self._main_window, "_scan_dock") and self._main_window._scan_dock:
             self._main_window._scan_dock.set_completed()
-            # Don't auto-hide dock - let user close it
 
-        # Hide progress bar but keep button visible
         if self._progress_bar:
             self._progress_bar.setVisible(False)
         if self._progress_label:
